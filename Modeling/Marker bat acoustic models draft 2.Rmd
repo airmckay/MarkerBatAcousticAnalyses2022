@@ -4,26 +4,101 @@ output: html_document
 date: "2022-11-28"
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r}
+knitr::opts_chunk$set(echo = F)
+knitr::opts_chunk$set(tidy = "styler")
+options(knitr.table.format = "html")
+
+# set project working directory according to the user system info 
+# Otherwise, all the data (inputs and outputs, including figures) can be stored on a shared OneDrive folder
+
+user <- Sys.info()['effective_user'] 
+user
+# this should print your nmbu user name - "apmc" in my case. 
+
+wd <- getwd()
+wd
+# "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/Documents/1. PhD_Main/GitHub_link/MarkerBatAcousticAnalyses/MarkerBatAcousticAnalyses2022"
+
+
+##########################################################
+#### Work environment set up ####
+##########################################################
+library(knitr)
+library(data.table)
+library(tidyverse)
+library(beepr)
+library(lubridate)
+library(purrr)
+#renv::install("rstudio/renv")
+library(renv)
+library(stringr)
+library(janitor)
+library(anytime)
+library(kableExtra)
+library(papeR)
+library(skimr)
+library(vtable)
+library(gratia)
+library(DHARMa)
+library(mgcv)
+library(tidymv)
+
+##########################################################
+#### Import data, set up directories   ####
+##########################################################
+
+# All input data can be found on a shared OneDrive folder - we can both share the same input folder but we should have different Output folders. 
+
+# for Katrine 
+#input <- ""
+
+# for Reed 
+input <- "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/SecondDraftAnalyses/Input"
+
+dataset1 <- "guild_behavior_batpass_summarytable_trimmed MRE social and met tower.csv" 
+# df2C for the dataset aggregated by guild and bahavior from Marker aggregated to night_all bats
+dataset2 <- "totalbatpass_summarytable_withbinary_batpass_night_aggregated_site data.csv"
+# df2C for the dataset aggregated to all batsa from Marker aggregated to night_all bats
+dataset3 <- "nightlyaggregatedMarker2020_totalbats_zeroinserted_behavior and guild.csv"
+# dataset aggregated to guild and behavior before being table transformed 
+path1 <- str_c(input, "/", dataset1)
+path2 <- str_c(input, "/", dataset2)
+path3 <- str_c(input, "/", dataset3)
+
+bats_gb <- read_csv(path1) # 11412 obs of 19 variables 
+bats_tot <- read.csv(path2) # # 951 obs of 17 variables variables
+bats_simple <- read.csv(path3) # 11412 obs of 8 vars 
+
+# for Reed
+output <- "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/SecondDraftAnalyses/Reed/Outputs"
+
+# for Katrine 
+#output <- ""
+
+## 
+ file.name <- "Marker bat acoustics models draft 2"
+# 
+ todays_date <- Sys.Date()
+# 
+dir.name <- str_c(output,"/", file.name, "_", todays_date)
+ dir.name
+# 
+ dir.create(dir.name)
+
+output_today <- dir.name
+output_today
+
 ```
 
-## R Markdown
+# Recommended Youtube videos on GAM to understand the R code below
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+ https://www.youtube.com/watch?v=q4_t8jXcQgc
+ https://www.youtube.com/watch?v=sgw4cu8hrZM&t=4038s
+ 
+ 
+```{r}
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
 ```
-
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+ 
+ 
