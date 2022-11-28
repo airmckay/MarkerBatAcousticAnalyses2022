@@ -535,7 +535,7 @@ plt4 <- ggplot(pred, aes(x=temp_mean, y = fit, group = factor(wind_mean))) +
   labs(x = expression(paste("Temperature [",degree,"C]")), y ="Proportion of hours per night with batpass>0")
 plt4 #Ouch the degree synbol turned out as a square...need to fix that at some point
 
-dev.off()
+dev.off() ## test
 ```
  
  From Katrine: 
