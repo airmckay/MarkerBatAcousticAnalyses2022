@@ -81,7 +81,7 @@ output <- "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/2. Mar
 #output <- ""
 
 ## 
- file.name <- "Marker aggregated to night_all bats"
+ file.name <- "Step2.Marker aggregated to night_all bats"
 # 
  todays_date <- Sys.Date()
 # 
