@@ -8,9 +8,26 @@ date: "2022-11-25"
 knitr::opts_chunk$set(echo = F)
 knitr::opts_chunk$set(tidy = "styler")
 
-getwd()
-# "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/Documents/1. PhD_Main/GitHub_link/MarkerBatAcousticAnalyses/MarkerBatAcousticAnalyses"
+##########################################################
+#### Work environment set up ####
+##########################################################
 
+# set project working directory according to the user system info 
+# Otherwise, all the data (inputs and outputs, including figures) can be stored on a shared OneDrive folder
+
+user <- Sys.info()['effective_user'] 
+user
+# this should print your nmbu user name - "apmc" in my case. 
+
+wd <- getwd()
+wd
+# "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/Documents/1. PhD_Main/GitHub_link/MarkerBatAcousticAnalyses/MarkerBatAcousticAnalyses2022"
+
+# eventually, I can add a tidy way of setting up all file paths / input and output directories using the user information to guide those paths. Pierre has offered to help with that. 
+
+##########################################################
+#### Load libraries ####
+##########################################################
 
 library(data.table)
 library(tidyverse)
@@ -22,15 +39,47 @@ library(renv)
 library(stringr)
 library(janitor)
 
-# compare <- COMPLETE_ZeroIncluded_ManualID_HourlyAggregated_Weather_behavior_guild_14072022_KE
-# sum(compare$batpass)
-#19358 bat passes
+# 19483 is the number of passes found in the dataset wrangled below - from taking the combined manual ids, cleaning the columns and parsing out multiple bat passes. The last data set we used ( COMPLETE_ZeroIncluded_ManualID_HourlyAggregated_Weather_behavior_guild_14072022_KE) had 19358 bat passes. These were perhaps lost when we merged with another data set (most likely the hourly weather data). Not catastrophic, but worth noting. 
 
-# 19483 is the number of passes found in the dataset wrangled below - from taking the combined manual ids, cleaning the columns and parsing out multiple bat passes. 
+##########################################################
+#### Import data  ####
+##########################################################
 
-manual_output <- read_csv("~/1. PhD_Main/GitHub_link/MarkerBatAcousticAnalyses/MarkerBatAcousticAnalyses/From Manual output to nightly aggregated/Inputs/1_Marker2020_ManualID_withnoise_original.csv") #257516 passes with noise
+# All input data can be found on a shared OneDrive folder - we can both share the same input folder but we should have different Output folders. 
+
+# for Katrine 
+#input <- ""
+
+# for Reed 
+input <- "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/SecondDraftAnalyses/Input"
+
+dataset1 <- "1_Marker2020_ManualID_withnoise_original.csv"
+
+path1 <- str_c(input, "/", dataset1)
+
+
+manual_output <- read_csv(path1) #257516 passes with noise
 str(manual_output) #27516 obs of 47 variables - all recordings processed through Kaleidoscope pro combined from all sites, with file directories describing site origins and data collection times. 
 
+# for Reed
+output <- "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/SecondDraftAnalyses/Reed/Outputs"
+
+# for Katrine 
+#output <- ""
+
+
+## 
+ file.name <- "Step1.tidy_raw_manualid_output"
+# 
+ todays_date <- Sys.Date()
+# 
+dir.name <- str_c(output,"/", file.name, "_", todays_date)
+ dir.name
+# 
+ dir.create(dir.name)
+
+output_today <- dir.name 
+# test test
 ```
 
 ```{r}
@@ -124,7 +173,8 @@ manual_output4 <- manual_output3 %>%
          DATE.12, TIME.12, HOUR.12, 
          AUTO.ID., PULSES, MATCH.RATIO, 
          MANUAL.ID, m_id18) #1927 obs of 15 vars
-#write.csv(manual_output4, "~/1. PhD_Main/GitHub_link/MarkerBatAcousticAnalyses/MarkerBatAcousticAnalyses/From Manual output to nightly aggregated/Outputs/Outputs_tidied/Marker_manualIDscleanred_preparsed.csv")
+
+#write.csv(manual_output4, file.path(output_today, "Marker_manualIDscleanred_preparsed.csv")) 
 
 manual_output5 <- manual_output4 %>% 
   tidyr::separate( col = m_id18,
@@ -165,17 +215,10 @@ manual_output6 <-full_join(bat1, bat2.0) #19483 obs
 #19297 + 186 = 19483 # good! 
 
 summary(manual_output6)
-#write.csv(manual_output6, "Outputs/Marker_manualIDscleaned_parsed_multiple_bats.csv")
 
 ##########################################################
 #### parse out behavior  ####
 ##########################################################
-
-# bcols <- c("buzz", "social", "both", "test", "testtest") 
-# manual_output7 <- manual_output6 %>% 
-#   tidyr::separate( col = manual_pass_clean1,
-#                    sep = ".", 
-#                    into = bcols)
 
 ##########################################################
 #### make behavior column, remove behavior tags from manuals ids ####
@@ -332,7 +375,8 @@ summary(manual_output15$Facility)
 
 summary(manual_output15)
 getwd()
-write.csv(manual_output15, "~/1. PhD_Main/GitHub_link/MarkerBatAcousticAnalyses/MarkerBatAcousticAnalyses/From Manual output to nightly aggregated/Outputs/Outputs_tidied/MarkerCleanedCombinedManualIDs.csv") 
+
+#write.csv(manual_output15, file.path(output_today,"MarkerCleanedCombinedManualIDs.csv")) 
 
 
 ```
@@ -413,7 +457,6 @@ ggplot(manual_output15) + geom_point(aes(x=DATE, y = guild, color = guild)) + fa
 ggplot(manual_output15) + geom_point(aes(x=HOUR.12, y = guild, color = guild)) + facet_wrap(~Site) # yes 
 
 ggplot(manual_output15) + geom_count(aes(x=DATE, y = guild, color = guild)) + facet_wrap(~Site) # first plot but with geom_count instead of geom_point
-
 
 ```
 
