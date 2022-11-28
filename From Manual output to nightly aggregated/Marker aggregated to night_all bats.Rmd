@@ -16,8 +16,23 @@ date: "2022-11-25"
 knitr::opts_chunk$set(echo = F)
 knitr::opts_chunk$set(tidy = "styler")
 options(knitr.table.format = "html")
-getwd()
-# "C:/Users/April/OneDrive - Norwegian University of Life Sciences/Documents/1. PhD_Main/GitHub/Marker_Acoustic_Analyses"
+
+# set project working directory according to the user system info 
+# Otherwise, all the data (inputs and outputs, including figures) can be stored on a shared OneDrive folder
+
+user <- Sys.info()['effective_user'] 
+user
+# this should print your nmbu user name - "apmc" in my case. 
+
+wd <- getwd()
+wd
+# "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/Documents/1. PhD_Main/GitHub_link/MarkerBatAcousticAnalyses/MarkerBatAcousticAnalyses2022"
+
+
+##########################################################
+#### Work environment set up ####
+##########################################################
+
 library(knitr)
 library(data.table)
 library(tidyverse)
@@ -32,10 +47,48 @@ library(anytime)
 library(kableExtra)
 library(papeR)
 library(skimr)
+library(vtable)
 
-bats1. <- read_csv("C:/Users/April/OneDrive - Norwegian University of Life Sciences/Documents/1. PhD_Main/GitHub/Marker_Acoustic_Analyses/From Manual output to nightly aggregated/Outputs/Outputs_tidied/MarkerManual_cleaned_manualid_guild_sitenames.csv", 
-     col_types = cols(...1 = col_skip()))
- 
+##########################################################
+#### Import data  ####
+##########################################################
+
+# All input data can be found on a shared OneDrive folder - we can both share the same input folder but we should have different Output folders. 
+
+
+input <- "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/SecondDraftAnalyses/Input"
+
+dataset1 <- "MarkerManual_cleaned_manualid_guild_sitenames.csv"
+dataset2 <- "Marker_night_inventory_0704.2022_edit.csv"
+dataset3 <- "nightlyaggregate_wind_temp.csv"
+
+path1 <- str_c(input, "/", dataset1)
+path2 <- str_c(input, "/", dataset2)
+path3 <- str_c(input, "/", dataset3)
+
+bats1. <- read_csv(path1) # 19438 bat passes with 22 vars
+active.nights <- read.csv(path2, sep = ";") # # 951 obs of 3 variables
+weather.nights <- read_csv(path3) # 93 obs of 8 vars
+
+
+# for Reed
+output <- "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/SecondDraftAnalyses/Reed/Outputs"
+
+# for Katrine 
+#output <- ""
+
+## 
+ file.name <- "Marker aggregated to night_all bats"
+# 
+ todays_date <- Sys.Date()
+# 
+dir.name <- str_c(output,"/", file.name, "_", todays_date)
+ dir.name
+# 
+ dir.create(dir.name)
+
+output_today <- dir.name
+
 ```
 
 # Make some pretty tables with the unaggregated dataset 
@@ -46,8 +99,8 @@ names(bats1.)
 cols <- c("manual.id" ,  "behavior"  ,  "guild"     ,  
           "Site"     ,   "Habitat"   ,  "Locality"  ,  "Facility")
 bats1.[cols] <- lapply(bats1.[cols], factor)
-bats1.$taxa <- bats1$manual.id
-levels(bats1$taxa)
+bats1.$taxa <- bats1.$manual.id
+levels(bats1.$taxa)
 # "BABA" "EPNI" "LR1"  "LR2"  "MR1"  "NYNO" "NoID" "PAUR" "PINA" "PIPY" "SR1"  "VEMU"
 levels(bats1.$taxa) <- list("Barbastella barbastellus" = "BABA",
                            "Plecotus auritus" = "PAUR",
@@ -70,6 +123,7 @@ levels(bats1.$Locality)
 levels(bats1.$Locality) <-list("Turbine2" = "Turbine2" , "Turbine4" = "Turbine4",  "Turbine8" = "Turbine8", "MeteorologicalTower" = "MeteorologicalTower", "Turbine9" = "Turbine9", "Turbine10" = "Turbine10", "Turbine11" = "Turbine11", "Turbine14" = "Turbine14") 
 summary(bats1.$Locality)
 
+# Can play with these and make them much nicer... 
 kbl(summarize(bats1., type = "factor", variables = "manual.id"))  %>%  kable_styling()
 kbl(summarize(bats1., type = "factor", variables = "taxa"))  %>%  kable_styling()
 kbl(summarize(bats1., type = "factor", variables = "guild"))  %>%  kable_styling()
@@ -77,12 +131,16 @@ kbl(summarize(bats1., type = "factor", variables = "Site"))  %>%  kable_styling(
 kbl(summarize(bats1., type = "factor", variables = "Habitat"))  %>%  kable_styling()
 kbl(summarize(bats1., type = "factor", variables = "Facility"))  %>%  kable_styling()
 
-
-library(vtable)
 names(bats1.)
 bats2. <- bats1. %>% select(behavior, guild, Site, Habitat, Locality, Facility, taxa) 
 
 st(bats2.)
+
+# will find a way to automatically print this table later... 
+# dev.print(device = .png, 
+#           filename = file.path(output_today, "summarytable.png"),
+#           width = 480, 
+#           height = 300)
 ```
 
 
@@ -105,9 +163,7 @@ summary(bats_nights_sum1$Site)
 ################################################
 # Insert zero activity nights
 ################################################
-
-active.nights <- Marker_night_inventory_0704_2022_edit <- read_delim("From Manual output to nightly aggregated/Inputs/Marker_night_inventory_0704.2022_edit.csv", 
-     delim = ";", escape_double = FALSE, trim_ws = TRUE) # 951 obs of 3 vars 
+head(active.nights)
 
 active.nights$Site <- gsub("C", "N", active.nights$Site)
 active.nights$Site <- gsub("MetA", "Met45", active.nights$Site)
@@ -174,15 +230,15 @@ summary(nbats2)
 nbats3 <- left_join(nbats2, bat_sitemap) 
 summary(nbats3)
 
-#write.csv(nbats3, "C:/Users/April/OneDrive - Norwegian University of Life Sciences/Documents/1. PhD_Main/GitHub/Marker_Acoustic_Analyses/From Manual output to nightly aggregated/Outputs/nightlyaggregatedMarker2020_totalbats_zeroinserted.csv")
+#write.csv(nbats3, file.path(output_today,"nightlyaggregatedMarker2020_totalbats_zeroinserted.csv")) 
 
 ```
 
 # Aggregate the hourly weather datasets to nightly 
 ```{r}
-weathernight <- nightlyaggregate_wind_temp <- read_csv("Inputs/nightlyaggregate_wind_temp.csv", col_types = cols(...1 = col_skip()))
+head(weather.nights)
 
-nbats4 <- left_join(nbats3, weathernight, by = "night")
+nbats4 <- left_join(nbats3, weather.nights, by = "night")
 
 summary(nbats4)
 
@@ -203,8 +259,8 @@ summary(bats5)
 head(bats5)
 tail(bats5)
 
-
-#write.csv(bats5, "C:/Users/April/OneDrive - Norwegian University of Life Sciences/Documents/1. PhD_Main/GitHub/Marker_Acoustic_Analyses/From Manual output to nightly aggregated/Outputs/nightlyaggregatedMarker2020_totalbats_zeroinserted_weather_binary.csv")
+#write.csv(bats5, file.path(
+#  output_today,"nightlyaggregatedMarker2020_totalbats_zeroinserted_weather_binary.csv")) 
 
 # last rounds of housekeeping
 
@@ -213,8 +269,9 @@ bats5$temp <- bats5$avg_temp
 bats5$jnight <- yday(bats5$night)
 
 # Aggregation table 
+# I am keeping the night (as.Date) variable for now because it is easier to recreate jnight from night than the other way around. 
 
-agg_tbl2 <- bats5 %>% group_by(jnight, Site) %>% 
+agg_tbl2 <- bats5 %>% group_by(night, Site) %>% 
   dplyr::summarise(across(c(Batpass, batpass01, wind, temp), list(sum = sum, mean = mean, min = min, max=max, length = length)))
 
 dim(agg_tbl2)
@@ -251,13 +308,13 @@ summary(df2C) # is also only ones or zeros... why apply this to the binary varia
 sum(df2C$Batpass_sum)
 # 19438 we have the correct number of bat passes so this looks good! 
 
-# write.csv(df2C, "C:/Users/April/OneDrive - Norwegian University of Life Sciences/Documents/1. PhD_Main/GitHub/Marker_Acoustic_Analyses/From Manual output to nightly aggregated/Outputs/totalbatpass_summarytable_withbinary_batpass_night_aggregated.csv")
+#write.csv(df2C, file.path(output_today, "totalbatpass_summarytable_withbinary_batpass_night_aggregated.csv")) 
 
 # Add back the other site data 
 
 df3C <- left_join(df2C, bat_sitemap)
 
-#write.csv(df3C, "C:/Users/April/OneDrive - Norwegian University of Life Sciences/Documents/1. PhD_Main/GitHub/Marker_Acoustic_Analyses/From Manual output to nightly aggregated/Outputs/totalbatpass_summarytable_withbinary_batpass_night_aggregated_site data.csv")
+#write.csv(df3C, file.path(output_today,"totalbatpass_summarytable_withbinary_batpass_night_aggregated_site data.csv"))
 
 ```
 
@@ -269,17 +326,17 @@ names(df3C)
 
 #batpass_prop	versus	jnight
 # save plot to file 
-bmp("C:/Users/April/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/temp/Habitat_batpass_prop_jnight.tif", width = 9, height = 6, units = "in", res = 350)
+bmp(file.path(output_today,"Habitat_batpass_prop_night.tif"), width = 9, height = 6, units = "in", res = 350)
 
 p <- ggplot()
-p <- p + xlab("jnight") + ylab("batpassTOTAL_prop")
+p <- p + xlab("night") + ylab("batpassTOTAL_prop")
 p <- p + theme(text = element_text(size = 15))
 p <- p + geom_point(data = df3C, 
-                    aes(x = jnight, 
+                    aes(x = night, 
                         y = batpass_prop),
                     size = 1)
 p <- p + geom_smooth(data = df3C, 
-                     aes(x = jnight, 
+                     aes(x = night, 
                          y = batpass_prop))
 
 p <- p + facet_grid( ~ Habitat)
@@ -292,7 +349,7 @@ dev.off()
 
 #batpass_prop	versus	temp_max			
 # save plot to file 
-bmp("C:/Users/April/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/temp/Habitat_batpass_prop_temp_max.tif", width = 9, height = 6, units = "in", res = 350)
+bmp(file.path(output_today, "Habitat_batpass_prop_temp_max.tif"), width = 9, height = 6, units = "in", res = 350)
 
 p <- ggplot()
 p <- p + xlab("temp_max") + ylab("batpassTOTAL_prop")
@@ -313,7 +370,7 @@ dev.off()
 
 #batpass_prop	versus	temp_mean			
 # save plot to file 
-bmp("C:/Users/April/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/temp/Habitat_batpass_prop_temp_mean.tif", width = 9, height = 6, units = "in", res = 350)
+bmp(file.path(output_today, "Habitat_batpass_prop_temp_mean.tif"), width = 9, height = 6, units = "in", res = 350)
 
 p <- ggplot()
 p <- p + xlab("temp_mean") + ylab("batpassTOTAL_prop")
@@ -334,7 +391,7 @@ dev.off()
 
 #batpass_prop	versus	wind_max			
 # save plot to file 
-bmp("C:/Users/April/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/temp/Habitat_batpass_prop_wind_max.tif", width = 9, height = 6, units = "in", res = 350)
+bmp(file.path(output_today, "Habitat_batpass_prop_wind_max.tif"), width = 9, height = 6, units = "in", res = 350)
 
 p <- ggplot()
 p <- p + xlab("wind_max") + ylab("batpassTOTAL_prop")
@@ -355,7 +412,7 @@ dev.off()
 
 #batpass_prop	versus	wind_mean			
 # save plot to file 
-bmp("C:/Users/April/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/temp/Habitat_batpass_prop_wind_mean.tif", width = 9, height = 6, units = "in", res = 350)
+bmp(file.path(output_today, "Habitat_batpass_prop_wind_mean.tif"), width = 9, height = 6, units = "in", res = 350)
 
 p <- ggplot()
 p <- p + xlab("wind_mean") + ylab("batpassTOTAL_prop")
@@ -376,7 +433,9 @@ dev.off()
 
 ```
 
+###############################################################################
 
+I am going to recycle some names and data objects from above. This is not best practice and I should probably separate this into two separate markdowns later or at least change the names of the objects below but for now I am just going to run with it. 
 
 
 # 2. Aggregated to night by guild and behavior 
@@ -396,7 +455,7 @@ summary(bats_gb_nights_sum1$Site)
 # Met45 Met95   N02   N04   N08   N09   N10   N11   N14   P02   P04   P08   P09   P10   P11   P14 
 #    68    20   140   132   142   167   181   138   158   134   117   114   185   162   174   139 
 
-#write.csv(bats_gb_nights_sum1, "C:/Users/April/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/temp/Outputs/bat pass aggregated by night wout zeronights_behavior and guild.csv")
+#write.csv(bats_gb_nights_sum1, file.path(output_today, "bat pass aggregated by night wout zeronights_behavior and guild.csv")) 
 
 ################################################
 # Insert zero activity nights
@@ -471,15 +530,15 @@ summary(nbats2)
 nbats3 <- left_join(nbats2, bat_sitemap) 
 summary(nbats3) # 11412 obs of 13 variables 
 
-#write.csv(nbats3, "C:/Users/April/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/temp/Outputs/nightlyaggregatedMarker2020_totalbats_zeroinserted_behavior and guild.csv")
+#write.csv(nbats3, file.path(output_today, "nightlyaggregatedMarker2020_totalbats_zeroinserted_behavior and guild.csv")) 
 
 ```
 
 # Aggregate the hourly weather datasets to nightly 
 ```{r}
-weathernight <- nightlyaggregate_wind_temp # using the same as above 
+head(weather.nights)
 
-nbats4 <- left_join(nbats3, weathernight, by = "night")
+nbats4 <- left_join(nbats3, weather.nights, by = "night")
 
 summary(nbats4)
 
@@ -501,7 +560,7 @@ head(bats5)
 tail(bats5)
 
 
-#write.csv(bats5, "C:/Users/April/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/temp/Outputs/nightlyaggregatedMarker2020_totalbats_zeroinserted_weather_binary_behavior and guild.csv")
+#write.csv(bats5, file.path(output_today, "nightlyaggregated_zeros_binary_behavior and guild.csv")) 
 
 # last rounds of housekeeping
 
@@ -548,16 +607,14 @@ summary(df2C) # is also only ones or zeros... why apply this to the binary varia
 sum(df2C$Batpass_sum)
 # 19438 we have the correct number of bat passes so this looks good! 
 
-#write.csv(df2C, "C:/Users/April/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/temp/Outputs/totalbatpass_summarytable_withbinary_batpass_night_aggregated_behavior and guild_night instead of jnight.csv")
+#write.csv(df2C, file.path(output_today, "totalbatpass_summarytable_withbinary_batpass_night_aggregated_behavior and guild.csv")) 
 
 # Add back the other site data 
 
 df3C <- left_join(df2C, bat_sitemap)
 head(df3C)
 
-#write.csv(df3C, "C:/Users/April/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/temp/Outputs/totalbatpass_summarytable_withbinary_batpass_night_aggregated_site_behavior_guild data_night instead of jnight.csv")
-
-
+#write.csv(df3C, file.path(output_today,"totalbatpass_summarytable_site.csv")) 
 
 ```
 
@@ -572,7 +629,7 @@ names(df3C)
 summary(df3C)
 
 
-bmp("C:/Users/April/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/temp/Survey effort per site.tif", width = 9, height = 6, units = "in", res = 350)
+bmp(file.path(output_today,"Survey effort per site.tif"), width = 9, height = 6, units = "in", res = 350)
 # eventually convert julian night to a proper date 
 p <- ggplot(data=df3C[df3C$Batpass_sum>0,]) +
   geom_point(data=df3C, aes(x=night,y=guild),shape=19,color="grey") +
