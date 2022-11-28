@@ -1,0 +1,462 @@
+---
+title: "From Manual output to nightly aggregated"
+output: html_document
+date: "2022-11-25"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+knitr::opts_chunk$set(tidy = "styler")
+
+##########################################################
+#### Work environment set up ####
+##########################################################
+
+# set project working directory according to the user system info 
+# Otherwise, all the data (inputs and outputs, including figures) can be stored on a shared OneDrive folder
+
+user <- Sys.info()['effective_user'] 
+user
+# this should print your nmbu user name - "apmc" in my case. 
+
+wd <- getwd()
+wd
+# "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/Documents/1. PhD_Main/GitHub_link/MarkerBatAcousticAnalyses/MarkerBatAcousticAnalyses2022"
+
+# eventually, I can add a tidy way of setting up all file paths / input and output directories using the user information to guide those paths. Pierre has offered to help with that. 
+
+##########################################################
+#### Load libraries ####
+##########################################################
+
+library(data.table)
+library(tidyverse)
+library(beepr)
+library(lubridate)
+library(purrr)
+#renv::install("rstudio/renv")
+library(renv)
+library(stringr)
+library(janitor)
+
+# 19483 is the number of passes found in the dataset wrangled below - from taking the combined manual ids, cleaning the columns and parsing out multiple bat passes. The last data set we used ( COMPLETE_ZeroIncluded_ManualID_HourlyAggregated_Weather_behavior_guild_14072022_KE) had 19358 bat passes. These were perhaps lost when we merged with another data set (most likely the hourly weather data). Not catastrophic, but worth noting. 
+
+##########################################################
+#### Import data  ####
+##########################################################
+
+# All input data can be found on a shared OneDrive folder - we can both share the same input folder but we should have different Output folders. 
+
+# for Katrine 
+#input <- ""
+
+# for Reed 
+input <- "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/SecondDraftAnalyses/Input"
+
+dataset1 <- "1_Marker2020_ManualID_withnoise_original.csv"
+
+path1 <- str_c(input, "/", dataset1)
+
+
+manual_output <- read_csv(path1) #257516 passes with noise
+str(manual_output) #27516 obs of 47 variables - all recordings processed through Kaleidoscope pro combined from all sites, with file directories describing site origins and data collection times. 
+
+# for Reed
+output <- "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/SecondDraftAnalyses/Reed/Outputs"
+
+# for Katrine 
+#output <- ""
+
+
+## 
+ file.name <- "Step1.tidy_raw_manualid_output"
+# 
+ todays_date <- Sys.Date()
+# 
+dir.name <- str_c(output,"/", file.name, "_", todays_date)
+ dir.name
+# 
+ dir.create(dir.name)
+
+output_today <- dir.name 
+# test test
+```
+
+```{r}
+# TIDYING! 
+##########################################################
+#### Remove noise files ####
+##########################################################
+
+manual_output$AUTO.ID. <- as.factor(manual_output$AUTO.ID.)
+
+manual_output1 <- manual_output %>% filter(AUTO.ID. != "Noise")
+# 19297 passes (not yet parsed for passes with multiple passes)
+# 257516 - 19297 = 238219 noise files. 
+
+##########################################################
+#### make more standardized manual ids ####
+##########################################################
+
+manual_output1$m_id <- as.factor(manual_output1$MANUAL.ID) 
+summary(manual_output1$m_id)
+
+# this is a hot mess and needs all kinds of tidying 
+
+fixthis1 <- subset(manual_output1, IN.FILE == "S4U10067_20200716_232445_000_SREwLRE.wav")
+fixthis1$IN.FILE <- gsub("_SREwLRE", "", fixthis1$IN.FILE)
+fixthis1$MANUAL.ID <- "SRE__LRE"
+
+# drop the original observation from the dataset and replace it with the fixed observation 
+
+manual_output2 <- manual_output1 %>% filter(IN.FILE != "S4U10067_20200716_232445_000_SREwLRE.wav") # dropped one observation 
+
+manual_output3 <- full_join(manual_output2, fixthis1) # added back one observation 
+# no more NAs in the MANUAL.ID column! 
+
+# notes from how this dataset was previously wrangled in excel:
+# change NoID to NoID1
+# change UNK_BABA_EPNI to NoID2
+# change UNK to NoID3 
+# change auto_guild_ to "" 
+# change __ to :
+# change .S to _S 
+
+
+# change __ to :
+manual_output3$m_id <- as.factor(manual_output3$MANUAL.ID) 
+summary(manual_output3$m_id)
+manual_output3$m_id1<- gsub("__", ":", manual_output3$m_id )
+# the guild preface is redundant and can be removed. 
+manual_output3$m_id2 <- gsub("LRE_","", manual_output3$m_id1)
+manual_output3$m_id3 <- gsub("MRE_","", manual_output3$m_id2)
+manual_output3$m_id4 <- gsub("SRE_","", manual_output3$m_id3)
+# weird typo
+manual_output3$m_id5 <- gsub("EMU","VEMU", manual_output3$m_id4) # this will create some more weird typos
+manual_output3$m_id6 <- gsub("VVEMU","VEMU", manual_output3$m_id5)
+# make one all encompassing NoID column 
+manual_output3$m_id7 <- gsub("UNK_BABA_EPNI","NoID", manual_output3$m_id6) 
+manual_output3$m_id8 <- gsub("UNK","NoID", manual_output3$m_id7) 
+manual_output3$m_id9 <- gsub("_UNK","NoID", manual_output3$m_id8)
+
+# some more typos
+manual_output3$m_id10 <- gsub("LRE1","LR1", manual_output3$m_id9)
+# simplify the social call tags
+manual_output3$m_id11 <- gsub(".A/D",".S", manual_output3$m_id10)
+manual_output3$m_id12 <- gsub(".S/D",".S", manual_output3$m_id11)
+manual_output3$m_id13 <- gsub(".S/A",".S", manual_output3$m_id12)
+# No longer going to consider the existance of PIPI in this dataset. 
+# Anything tagged as PIPI or potentially PI will become MR1
+# MR2 also becomes MR1 (unknown Pipistrelle calls)
+manual_output3$m_id14 <- gsub("PIPI","MR1", manual_output3$m_id13)
+manual_output3$m_id15 <- gsub("MR2","MR1", manual_output3$m_id14)
+manual_output3$m_id16 <- gsub("MRE1","MR1", manual_output3$m_id15)
+manual_output3$m_id17 <- gsub("MRE2","MR1", manual_output3$m_id16)
+# lets check and see what this looks like now... 
+manual_output3$m_id17 <- as.factor(manual_output3$m_id17)
+summary(manual_output3$m_id17)
+levels((manual_output3$m_id17))
+
+# just a few more weird things to fix... 
+manual_output3$m_id18 <- gsub("_NoID.S","NoID.S", manual_output3$m_id17)
+manual_output3$m_id18 <- as.factor(manual_output3$m_id18)
+summary(manual_output3$m_id18)
+levels((manual_output3$m_id18)) # much better
+
+### Now parse by multiple bats in a single passes 
+mcols <- c("manual_pass1", "manual_pass2")
+
+# lets also trim down to just essential columns while we are at it... 
+manual_output4 <- manual_output3 %>% 
+  select(INDIR, OUTDIR, IN.FILE, DURATION, 
+         DATE, TIME, HOUR, 
+         DATE.12, TIME.12, HOUR.12, 
+         AUTO.ID., PULSES, MATCH.RATIO, 
+         MANUAL.ID, m_id18) #1927 obs of 15 vars
+
+#write.csv(manual_output4, file.path(output_today, "Marker_manualIDscleanred_preparsed.csv")) 
+
+manual_output5 <- manual_output4 %>% 
+  tidyr::separate( col = m_id18,
+                   sep = ":", 
+                   into = mcols)
+
+# create a subset of the dataset with just manual_pass2, 
+# remove the NAs
+# add back these observations as new passes
+
+bat2 <- manual_output5 %>% select(INDIR, OUTDIR, IN.FILE, DURATION, 
+         DATE, TIME, HOUR, 
+         DATE.12, TIME.12, HOUR.12, 
+         AUTO.ID., PULSES, MATCH.RATIO, 
+         MANUAL.ID, manual_pass2) %>% 
+  mutate(manual_pass2 = factor(manual_pass2)) %>% 
+  rename(manual_pass_clean1 = manual_pass2) # need to have all the same column names to merge
+summary(bat2) # 19111 NAs in manual_pass2
+
+bat2.0 <- drop_na(bat2) # 186 obs 
+#19297 - 186 = 19111 # good! 
+
+##########################################################
+#### parsing multiple bats from passes ####
+##########################################################
+
+
+# make a dataset with just manual pass1 
+bat1 <- manual_output5 %>% select(INDIR, OUTDIR, IN.FILE, DURATION, 
+         DATE, TIME, HOUR, 
+         DATE.12, TIME.12, HOUR.12, 
+         AUTO.ID., PULSES, MATCH.RATIO, 
+         MANUAL.ID, manual_pass1) %>% 
+  mutate(manual_pass1 = factor(manual_pass1)) %>% 
+  rename(manual_pass_clean1 = manual_pass1) # need to have all the same column names to merge
+
+manual_output6 <-full_join(bat1, bat2.0) #19483 obs 
+#19297 + 186 = 19483 # good! 
+
+summary(manual_output6)
+
+##########################################################
+#### parse out behavior  ####
+##########################################################
+
+##########################################################
+#### make behavior column, remove behavior tags from manuals ids ####
+##########################################################
+
+manual_output7 <- manual_output6 %>%
+  mutate(manual_pass_clean1 = as.character(manual_pass_clean1)) %>% 
+  mutate(behavior = case_when(
+    str_detect(manual_pass_clean1, ".B") ~ "Feeding",
+    str_detect(manual_pass_clean1, ".S") ~ "Social",
+    str_detect(manual_pass_clean1,".B.S") ~ "Feeding",
+    str_detect(manual_pass_clean1, ".S.B") ~ "Feeding",
+    TRUE ~ "Commuting"
+  ))
+
+# remove all the behavior tags in the manual_pass_clean1 column so it is only manual ids
+
+manual_output8 <-manual_output7 
+manual_output8$manual_pass_clean2 <- gsub(".B", "",manual_output8$manual_pass_clean1)
+manual_output8$manual_pass_clean3 <- gsub(".S", "",manual_output8$manual_pass_clean2)
+
+manual_output8$manual_pass_clean3 <- as.factor(manual_output8$manual_pass_clean3)
+summary(manual_output8$manual_pass_clean3)
+#   BA  EPNI EPNI.   LR1   LR2   LRE   MR1  NYNO  NoID Noise  PAUR  PINA  PIPY   SRE  SRE.  VEMU VEMU. 
+#   11 14014     1   131   221     1    22   182   484    45   553     9    64  3576     1   167     1 
+
+# Okay SO still some typos in here but nothing catastrophic!
+manual_output8$manual_pass_clean4 <- gsub("BA", "BABA", manual_output8$manual_pass_clean3)
+manual_output8$manual_pass_clean5 <- gsub("EPNI.", "EPNI", manual_output8$manual_pass_clean4)
+manual_output8$manual_pass_clean6 <- gsub("LRE", "LR1", manual_output8$manual_pass_clean5)
+manual_output8$manual_pass_clean7 <- gsub("SRE.", "SRE", manual_output8$manual_pass_clean6)
+manual_output8$manual_pass_clean8 <- gsub("SRE", "SR1", manual_output8$manual_pass_clean7) 
+manual_output8$manual_pass_clean9 <- gsub("VEMU.", "VEMU", manual_output8$manual_pass_clean8)
+
+manual_output8$manual_pass_clean9 <- as.factor(manual_output8$manual_pass_clean9)
+summary(manual_output8$manual_pass_clean9) # WOOOOHOOOOO
+ # BABA  EPNI   LR1   LR2   MR1  NYNO  NoID Noise  PAUR  PINA  PIPY   SR1  VEMU 
+ #   11 14015   132   221    22   182   484    45   553     9    64  3577   168
+
+manual_output8$behavior <- as.factor(manual_output8$behavior)
+summary(manual_output8$behavior)
+# Commuting   Feeding    Social 
+#     14876      4057       550 
+
+manual_output9 <- manual_output8 %>% select(INDIR, OUTDIR, IN.FILE, DURATION, 
+         DATE, TIME, HOUR, 
+         DATE.12, TIME.12, HOUR.12, 
+         AUTO.ID., PULSES, MATCH.RATIO, 
+         MANUAL.ID, manual_pass_clean9, behavior) %>% 
+         rename(manual.id = manual_pass_clean9) 
+
+#write.csv(manual_output9, "~/1. PhD_Main/GitHub_link/MarkerBatAcousticAnalyses/MarkerBatAcousticAnalyses/From Manual output to nightly aggregated/Outputs/Outputs_tidied/MarkerCleanedCombinedManualIDs_withnoise.csv")
+
+##########################################################
+#### drop Noise files  ####
+##########################################################
+
+manual_output10 <- manual_output9 %>% filter(manual.id != "Noise") #19438 passes
+#19483-19438 = 45 # good! 
+
+##########################################################
+#### make guild column  ####
+##########################################################
+
+ # BABA  EPNI   LR1   LR2   MR1  NYNO  NoID PAUR  PINA  PIPY   SR1  VEMU 
+manual_output11 <- manual_output10 %>% mutate(
+  guild = case_when(
+    manual.id %in% c("BABA", "SR1", "PAUR") ~ "SRE", 
+    manual.id %in% c("MR1", "PINA", "PIPY") ~ "MRE", 
+    manual.id %in% c("EPNI", "LR1", "LR2", "VEMU", "NYNO") ~ "LRE",
+    manual.id == "NoID" ~ "NoID"
+    
+  )
+) %>% mutate(guild = as.factor(guild))
+ 
+summary(manual_output11$guild)
+#   LRE   MRE  NoID   SRE 
+# 14718    95   484  4141 
+
+##########################################################
+#### make the Site / Habitat / Locality / Facility columns ####
+##########################################################
+#summary(compare)
+head(manual_output11)
+
+manual_output12 <- manual_output11 %>%
+  mutate(Site = case_when(
+    str_detect(OUTDIR, "MetA") ~ "Met45",
+    str_detect(OUTDIR, "MetB") ~ "Met95",
+    str_detect(OUTDIR, "C02") ~ "N02",
+    str_detect(OUTDIR, "P02") ~ "P02",
+    str_detect(OUTDIR, "C04") ~ "N04",
+    str_detect(OUTDIR, "P04") ~ "P04",
+    str_detect(OUTDIR, "C08") ~ "N08",
+    str_detect(OUTDIR, "P08") ~ "P08",
+    str_detect(OUTDIR, "C09") ~ "N09",
+    str_detect(OUTDIR, "P09") ~ "P09",
+    str_detect(OUTDIR, "C10") ~ "N10",
+    str_detect(OUTDIR, "P10") ~ "P10",
+    str_detect(OUTDIR, "C11") ~ "N11",
+    str_detect(OUTDIR, "P11") ~ "P11",
+    str_detect(OUTDIR, "C14") ~ "N14",
+    str_detect(OUTDIR, "P14") ~ "P14",
+  )) %>% mutate(Site = as.factor(Site)) 
+
+summary(manual_output12$Site)
+# Met45 Met95   N02   N04   N08   N09   N10   N11   N14   P02   P04   P08   P09   P10   P11   P14 
+#   197    35   790   600   598  4287  1819   368   728   836   783   441  3686   976  1835  1459 
+
+manual_output13 <- manual_output12 %>% mutate(Habitat = 
+                   case_when(
+                     str_detect(Site, "Met") ~ "MeteorologicalTower", 
+                     str_detect(Site, "N") ~ "Natural", 
+                     str_detect(Site, "P") ~ "TurbinePad", 
+                   )) %>%  mutate(Habitat = as.factor(Habitat)) 
+
+summary(manual_output13$Habitat)
+# MeteorologicalTower             Natural          TurbinePad 
+#                 232                9190               10016 
+summary(manual_output13$Site)
+manual_output14 <- manual_output13 %>% mutate(Locality = 
+                   case_when(
+                     str_detect(Site, "Met") ~ "MeteorologicalTower", 
+                     str_detect(Site, "2") ~ "Turbine2", 
+                     Site %in% c("P04", "N04") ~ "Turbine4", 
+                     str_detect(Site, "8") ~ "Turbine8", 
+                     str_detect(Site, "9") ~ "Turbine9", 
+                     str_detect(Site, "10") ~ "Turbine10", 
+                     str_detect(Site, "11") ~ "Turbine11", 
+                     Site %in% c("P14", "N14") ~ "Turbine14",
+                   ))
+
+manual_output14 <- manual_output14 %>%  mutate(Locality = as.factor(Locality)) 
+summary(manual_output14$Locality)
+# MeteorologicalTower           Turbine10           Turbine11           Turbine14            Turbine2 
+#                 232                2795                2203                2187                1626 
+#            Turbine4            Turbine8            Turbine9 
+#                1383                1039                7973 
+
+manual_output15 <- manual_output14 %>% mutate(Facility = 
+                   case_when(
+                     str_detect(Site, "Met") ~ "South", 
+                     str_detect(Site, "2") ~ "North", 
+                     str_detect(Site, "4") ~ "North", 
+                     str_detect(Site, "8") ~ "North", 
+                     str_detect(Site, "9") ~ "South", 
+                     str_detect(Site, "10") ~ "South", 
+                     str_detect(Site, "11") ~ "South", 
+                     str_detect(Site, "14") ~ "South", 
+                   )) %>%  mutate(Facility = as.factor(Facility)) 
+summary(manual_output15$Facility)
+# North South 
+# 6235 13203 
+
+summary(manual_output15)
+getwd()
+
+#write.csv(manual_output15, file.path(output_today,"MarkerCleanedCombinedManualIDs.csv")) 
+
+
+```
+
+### summary of the original manual ids 
+
+LRE1            LRE_EMU.B.S.                LRE_EPNI              LRE_EPNI.B 
+2                       1                    9999                    3605 
+           LRE_EPNI.B.S           LRE_EPNI.B.S.         LRE_EPNI.B__SRE              LRE_EPNI.S 
+                     67                       1                      11                     201 
+           LRE_EPNI.S.B         LRE_EPNI.S__SRE       LRE_EPNI__LRE_LR1       LRE_EPNI__LRE_LR2 
+                      2                       3                       3                       7 
+     LRE_EPNI__LRE_NYNO      LRE_EPNI__MRE_PIPY           LRE_EPNI__SRE         LRE_EPNI__SRE.B 
+                      2                       1                      96                       4 
+     LRE_EPNI__SRE.B.S.         LRE_EPNI__SRE.S        LRE_EPNI___UNK.S                 LRE_LR1 
+                      1                       5                       1                     121 
+              LRE_LR1.B       LRE_LR1__LRE_NYNO            LRE_LR1__SRE                 LRE_LR2 
+                      2                       1                       1                     195 
+              LRE_LR2.B             LRE_LR2.B.S               LRE_LR2.S       LRE_LR2__LRE_EPNI 
+                     11                       1                       1                       1 
+           LRE_LR2__SRE          LRE_LR2__UNK.S                LRE_NYNO              LRE_NYNO.B 
+                      1                       2                     167                       4 
+             LRE_NYNO.S      LRE_NYNO__LRE_EPNI           LRE_NYNO__SRE         LRE_NYNO__UNK.S 
+                      3                       1                       3                       1 
+               LRE_VEMU              LRE_VEMU.B              LRE_VEMU.S            LRE_VEMU.S/D 
+                    151                      10                       1                       1 
+          LRE_VEMU__SRE         LRE_VEMU__UNK.S                 MRE_MR1            MRE_MR1__SRE 
+                      2                       1                       6                       1 
+               MRE_MRE1                MRE_MRE2                MRE_PINA                MRE_PIPI 
+                      6                       1                       9                       7 
+        MRE_PIPI__SRE.S                MRE_PIPY              MRE_PIPY.B           MRE_PIPY__SRE 
+                      1                      59                       3                       1 
+                   NoID                  NoID.S                   Noise                     SRE 
+                     19                       1                      45                    3092 
+                  SRE.B                 SRE.B.S            SRE.B__UNK.S                   SRE.S 
+                    320                       1                       1                       5 
+               SRE_BABA                SRE_PAUR              SRE_PAUR.B              SRE_PAUR.S 
+                     11                     519                       1                       8 
+     SRE_PAUR__LRE_EPNI    SRE_PAUR__LRE_EPNI.S           SRE_PAUR__SRE         SRE_PAUR__UNK.S 
+                      1                       1                       7                       2 
+              SRE_UNK.S            SRE__LRE_LR1            SRE__LRE_LR2           SRE__LRE_VEMU 
+                      2                       1                       2                       1 
+          SRE__SRE_PAUR              SRE__UNK.S                 UNK.A/D                   UNK.S 
+                     14                       1                       1                     303 
+                UNK.S/A           UNK_BABA_EPNI         UNK_BABA_EPNI.S UNK_BABA_EPNI__LRE_EPNI 
+                      3                     142                       1                       2 
+     UNK_BABA_EPNI__SRE                    NA's 
+                      1                       1 
+                      
+################################################################################                    
+                      
+## output  levels((manual_output3$m_id18))
+ [1] "BABA"          "EPNI"          "EPNI.B"        "EPNI.B.S"      "EPNI.B.S."     "EPNI.B:SRE"   
+ [7] "EPNI.S"        "EPNI.S.B"      "EPNI.S:SRE"    "EPNI:LR1"      "EPNI:LR2"      "EPNI:NYNO"    
+[13] "EPNI:NoID.S"   "EPNI:PIPY"     "EPNI:SRE"      "EPNI:SRE.B"    "EPNI:SRE.B.S." "EPNI:SRE.S"   
+[19] "LR1"           "LR1.B"         "LR1:NYNO"      "LR1:SRE"       "LR2"           "LR2.B"        
+[25] "LR2.B.S"       "LR2.S"         "LR2:EPNI"      "LR2:NoID.S"    "LR2:SRE"       "MR1"          
+[31] "MR1:SRE"       "MR1:SRE.S"     "NYNO"          "NYNO.B"        "NYNO.S"        "NYNO:EPNI"    
+[37] "NYNO:NoID.S"   "NYNO:SRE"      "NoID"          "NoID.S"        "NoID:EPNI"     "NoID:SRE"     
+[43] "Noise"         "PAUR"          "PAUR.B"        "PAUR.S"        "PAUR:EPNI"     "PAUR:EPNI.S"  
+[49] "PAUR:NoID.S"   "PAUR:SRE"      "PINA"          "PIPY"          "PIPY.B"        "PIPY:SRE"     
+[55] "SRE"           "SRE.B"         "SRE.B.S"       "SRE.B:NoID.S"  "SRE.S"         "SRE:LR1"      
+[61] "SRE:LR2"       "SRE:LRE"       "SRE:NoID.S"    "SRE:PAUR"      "SRE:VEMU"      "VEMU"         
+[67] "VEMU.B"        "VEMU.B.S."     "VEMU.S"        "VEMU:NoID.S"   "VEMU:SRE"     
+
+## Exploratory plots to check that the data looks alright 
+```{r}
+# check to see if all the sites have a decent spread of data... 
+
+names(manual_output15)
+#  [1] "INDIR"       "OUTDIR"      "IN.FILE"     "DURATION"    "DATE"        "TIME"        "HOUR"        "DATE.12"     "TIME.12"     "HOUR.12"    
+# [11] "AUTO.ID."    "PULSES"      "MATCH.RATIO" "MANUAL.ID"   "manual.id"   "behavior"    "guild"       "Site"        "Habitat"     "Locality"   
+# [21] "Facility"  
+
+# are all the guilds represented at each site throughout the season? 
+ggplot(manual_output15) + geom_point(aes(x=DATE, y = guild, color = guild)) + facet_wrap(~Site) # yes
+# are all the guilds represented at each site throughout the night? 
+ggplot(manual_output15) + geom_point(aes(x=HOUR.12, y = guild, color = guild)) + facet_wrap(~Site) # yes 
+
+ggplot(manual_output15) + geom_count(aes(x=DATE, y = guild, color = guild)) + facet_wrap(~Site) # first plot but with geom_count instead of geom_point
+
+```
+
