@@ -526,7 +526,7 @@ head(pred)
 
 new_labels <- c("4" = "wind 4m/s", "7" = "wind 7m/s", "10" = "wind 10m/s")
 
-bmp(file.path(output_today, "prediction of temp at dif wind speeds m2b bats_tot.png"), width = 9, height = 6, units = "in", res = 350)
+bmp(file.path(output_today, "prediction of temp at dif wind speeds m2b bats_tot.png"), width = 9, height = 6, units = "in", res = 350) # test 
 
 #windows()
 plt4 <- ggplot(pred, aes(x=temp_mean, y = fit, group = factor(wind_mean))) +
