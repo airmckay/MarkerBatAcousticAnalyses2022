@@ -88,7 +88,7 @@ output <- "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/2. Mar
 dir.name <- str_c(output,"/", file.name, "_", todays_date)
  dir.name
 # 
- dir.create(dir.name)
+# dir.create(dir.name) # be careful not to run over an already created directory 
 
 output_today <- dir.name
 
@@ -154,14 +154,14 @@ st(bats2.)
 bats3. <- bats1. %>% mutate(date = as.Date(DATE),
                            night = as.Date(DATE.12))
 
-bat_sitemap <- bats1. %>% select(Site, Habitat, Facility) %>% distinct() 
+bat_sitemap <- bats1. %>% select(Site, Habitat, Facility, Locality) %>% distinct() 
 
 bats_nights_sum <- bats3. %>% group_by(Site, night) %>% dplyr::summarize(batpass = sum(n())) 
 bats_nights_sum1 <- left_join(bats_nights_sum, bat_sitemap)
 summary(bats_nights_sum1)
 summary(bats_nights_sum1$Site)
 
-#write.csv(bats_nights_sum1, "C:/Users/April/OneDrive - Norwegian University of Life Sciences/Documents/1. PhD_Main/GitHub/Marker_Acoustic_Analyses/From Manual output to nightly aggregated/Outputs/Outputs_nightaggregated/bat pass aggregated by night wout zeronights.csv")
+#write.csv(bats_nights_sum1, file.path(output_today("Outputs_nightaggregated/bat pass aggregated by night wout zeronights.csv")) 
 
 ################################################
 # Insert zero activity nights
@@ -220,15 +220,15 @@ summary(temp3) # 173 zero nights introduced
 # reformat factor columns and then replace NA bat passes with zeros 
 nbats1 <- temp3 
 
-#Replace NAs with zeros 
-nbats1[is.na(nbats1)] <- 0 
-summary(nbats1)
-
 # batpasses converted to zeros but NAs pop up in the factor columns
 # fix Habitat and Facility 
 
-nbats2 <- nbats1 %>% select(-c(active.night, Habitat, Facility)) 
+nbats2 <- nbats1 %>% select(-c(active.night, Habitat, Facility, Locality)) 
 summary(nbats2)  
+
+#Replace NAs with zeros 
+nbats2[is.na(nbats2)] <- 0 
+summary(nbats2)
 
 nbats3 <- left_join(nbats2, bat_sitemap) 
 summary(nbats3)
@@ -262,8 +262,8 @@ summary(bats5)
 head(bats5)
 tail(bats5)
 
-#write.csv(bats5, file.path(
-#  output_today,"nightlyaggregatedMarker2020_totalbats_zeroinserted_weather_binary.csv")) 
+# write.csv(bats5, file.path(
+#   output_today,"nightlyaggregatedMarker2020_totalbats_zeroinserted_weather_binary.csv")) 
 
 # last rounds of housekeeping
 
@@ -316,6 +316,7 @@ sum(df2C$Batpass_sum)
 # Add back the other site data 
 
 df3C <- left_join(df2C, bat_sitemap)
+summary(df3C)
 
 #write.csv(df3C, file.path(output_today,"totalbatpass_summarytable_withbinary_batpass_night_aggregated_site data.csv"))
 
@@ -517,21 +518,21 @@ summary(temp3) # 9241 zero nights/behavior/guilds introduced
 # reformat factor columns and then replace NA bat passes with zeros 
 nbats1 <- temp3 
 
-#Replace NAs with zeros 
-nbats1[is.na(nbats1)] <- 0 
-summary(nbats1)
-
-sum(nbats1$batpass) 
-# 19438 # good! 
-
 # batpasses converted to zeros but NAs pop up in the factor columns
 # fix Habitat and Facility 
 
 nbats2 <- nbats1 %>% select(-c(active.night)) 
 summary(nbats2)  
 
+#Replace NAs with zeros 
+nbats2[is.na(nbats2)] <- 0 
+summary(nbats2)
+
+sum(nbats2$batpass) 
+# 19438 # good! 
+
 nbats3 <- left_join(nbats2, bat_sitemap) 
-summary(nbats3) # 11412 obs of 13 variables 
+summary(nbats3) # 11412 obs of 8 variables 
 
 #write.csv(nbats3, file.path(output_today, "nightlyaggregatedMarker2020_totalbats_zeroinserted_behavior and guild.csv")) 
 
@@ -610,14 +611,14 @@ summary(df2C) # is also only ones or zeros... why apply this to the binary varia
 sum(df2C$Batpass_sum)
 # 19438 we have the correct number of bat passes so this looks good! 
 
-#write.csv(df2C, file.path(output_today, "totalbatpass_summarytable_withbinary_batpass_night_aggregated_behavior and guild.csv")) 
+#write.csv(df2C, file.path(output_today, "aggregated night behavior guild_summarytable_withbinary_batpass.csv")) 
 
 # Add back the other site data 
 
 df3C <- left_join(df2C, bat_sitemap)
 head(df3C)
 
-#write.csv(df3C, file.path(output_today,"totalbatpass_summarytable_site.csv")) 
+#write.csv(df3C, file.path(output_today,"guild_behavior_summarytable_site.csv")) 
 
 ```
 
@@ -655,8 +656,7 @@ df1 <- df3C %>%
 
 summary(df1) # 4866 obs of 18 vars
 
-#write.csv(df3C, file.path(output_today, "totalbatpass_summarytable_trimmed MRE social and met tower.csv")) 
-### copied and renamed as "guild_behavior_batpass_summarytable_trimmed MRE social and met tower"
+#write.csv(df1, file.path(output_today, "guild_behavior_batpass_summarytable_trimmed MRE social and met tower.csv")) 
 
 ```
 
