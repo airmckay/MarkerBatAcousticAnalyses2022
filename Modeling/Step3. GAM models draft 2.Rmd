@@ -431,7 +431,7 @@ dev.off()
 
 ```
 
-#Scetching the results - difference between Habitats
+#Sketching the results - difference between Habitats
 ```{r}
 levels(bats_prune$Habitat)
 # "MeteorologicalTower" "Natural"             "TurbinePad"   
@@ -545,7 +545,176 @@ dev.off()
 <!-- #But there is a way of excluding terms when predicting, see: https://cran.r-project.org/web/packages/tidymv/vignettes/predict-gam.html -->
 <!-- #But I have not had time to figure this out yet. -->
 
+##############################################################################################
+
+Similar approach, now with 4 differen datasets - 
+
+LRE feeding
+LRE commuting
+SRE feeding
+SRE commuting
+
+Prepare new subsetted data
+Take from bats_gb_trim (already removed met tower, MRE and social passes)'
+
+```{r}
+
+bats_gb_trim$Habitat <- factor(bats_gb_trim$Habitat)
+bats_gb_trim$Locality <- factor(bats_gb_trim$Locality)
+bats_gb_trim$Site <- factor(bats_gb_trim$Site)
+bats_gb_trim$Facility <- factor(bats_gb_trim$Facility)
+bats_gb_trim$guild <- factor(bats_gb_trim$guild)
+bats_gb_trim$behavior <- factor(bats_gb_trim$behavior)
+bats_gb_trim$jnight <- yday(bats_gb_trim$night)
+
+bats_gb_trim$yes_batpass <- bats_gb_trim$batpass01_sum   #batpass01_sum is sum of '1' values in batpass01, i.e. number of observ. hours per night when batpass recorded
+bats_gb_trim$no_batpass <- bats_gb_trim$batpass01_length - bats_gb_trim$batpass01_sum #batpass01_length is number of observ. hours per night
+
+summary(bats_gb_trim)
+
+LREf <- bats_gb_trim %>% filter(guild == "LRE", behavior == "Feeding") %>% droplevels()
+LREc <- bats_gb_trim %>% filter(guild %in% "LRE", behavior %in% "Commuting") %>% droplevels()
+
+SREf <- bats_gb_trim %>% filter(guild == "SRE", behavior == "Feeding") %>% droplevels()
+SREc <- bats_gb_trim %>% filter(guild == "SRE", behavior == "Commuting") %>% droplevels()
+
+summary(LREf) # 811 obs of 23 vars 
+summary(LREc) # 811 obs of 23 vars 
+
+summary(SREf) # 811 obs of 23 vars 
+summary(SREc) # 811 obs of 23 vars 
+```
+
+# Now with LRE feeding
+
+```{r}
+m1_LREf <- gam(cbind(yes_batpass,no_batpass) ~
+              s(Locality, bs = "re") +                       #bs = "re" is equivalent to adding Locality as random intercept in a mixed model (GAMM)
+              s(jnight, by = Habitat, bs = "gp", k =90) +    #allows for separate shapes of relationships with jnight for each habitat, bs = "gp" takes care of temporal autocorrelation
+              Habitat +                                      #main effect of habitat (testing if means differ between habitats)
+              s(temp_mean) +                                 #does not seem to make much difference whether I use max or mean temp, so I chose mean (feels less like cherry-picking, I think...)
+              s(wind_mean) +                                 #same as for temp
+              ti(temp_mean,wind_mean) ,                      #interaction between temp and wind
+              data = LREf, method = "REML",                  #REML is not default, but is highly recommended by experts
+              family = binomial, select=TRUE)                #may have to shift to quasibinomial if overdispersion, select = TRUE gives you automatic model selection
+
+summary(m1_LREf) # 
+# Now everything is significant besdies the ti(temp_mean, wind_mean) term
+# Opposite from the last m1 model basically 
+```
+________________________________________________________________________________
+
+Family: binomial 
+Link function: logit 
+
+Formula:
+cbind(yes_batpass, no_batpass) ~ s(Locality, bs = "re") + 
+    s(jnight, by = Habitat, bs = "gp", k = 90) + Habitat + 
+    s(temp_mean) + s(wind_mean) + ti(temp_mean, wind_mean)
+
+Parametric coefficients:
+                  Estimate Std. Error z value Pr(>|z|)    
+(Intercept)        -1.2595     0.3560  -3.538 0.000403 ***
+HabitatTurbinePad   0.6617     0.1992   3.321 0.000896 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Approximate significance of smooth terms:
+                                  edf Ref.df Chi.sq  p-value    
+s(Locality)                 5.5265823      6  55.65  < 2e-16 ***
+s(jnight):HabitatNatural    1.8601064     87  18.16 6.89e-05 ***
+s(jnight):HabitatTurbinePad 3.7275409     88  23.97 7.41e-05 ***
+s(temp_mean)                3.2288598      9  72.42  < 2e-16 ***
+s(wind_mean)                3.4219551      9  31.51  < 2e-16 ***
+ti(temp_mean,wind_mean)     0.0004462     16   0.00    0.475    
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+R-sq.(adj) =  0.372   Deviance explained = 33.6%
+-REML = 393.62  Scale est. = 1         n = 811
+
+________________________________________________________________________________
+
+```{r}
+par(mfrow = c(2,2))
+gam.check(m1_LREf)           #look at the plots, but also the output to check if k needs to be adjusted
+gam.check(m1_LREf, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
+
+overdispersion.m1_LREf <- sum( residuals(m1_LREf, "pearson")^2 ) / m1_LREf$df.residual
+overdispersion.m1_LREf
+# 0.984761 ... it is alright! 
+
+# From Katrine's Step3B GAM modelling script: 
+#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
+
+```
+
+
+# Basis dimension (k) checking results: 
+The k-index should be approx. 1 or larger
+Play play around with k....
+
+```{r}
+
+bmp(file.path(output_today, "checking k dimensions m1_LREf bats_tot.png"), width = 9, height = 6, units = "in", res = 350)
+
+windows()
+plot(m1_LREf, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
+
+draw(m1_LREf, scales ="free")         #function 'draw' is from package 'gratia'
+draw(m1_LREf, scales ="fixed")
+
+dev.off() 
+```
+
+
+#Sketching the results - difference between Habitats
+```{r}
+levels(LREf$Habitat)
+# "Natural"    "TurbinePad"
+
+levels(LREf$Locality)
+# [1] "Turbine10"           "Turbine11"           "Turbine14"          
+# [5] "Turbine2"            "Turbine4"            "Turbine8"            "Turbine9"
+
+pdata <- with(LREf,
+              expand.grid(temp_mean=14,
+                          wind_mean = 6,
+                          Habitat = c("Natural", "TurbinePad"),
+                          Locality = c("Turbine14"),
+                          jnight = seq(min(jnight), max(jnight), 1))) #1 to keep the integer format
+
+head(pdata)
+tail(pdata)
+
+fit <- data.frame(predict(m1_LREf, newdata=pdata, se.fit=TRUE, type = 'response'))
+fit <- transform(fit, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
+pred <- cbind(pdata,fit)
+
+head(pred)
+
+
+bmp(file.path(output_today, "predictions m1_LREf bats_tot.png"), width = 9, height = 6, units = "in", res = 350)
+
+windows()
+plt2 <- ggplot(pred, aes(x=jnight, y = fit, group = factor(Habitat))) +
+    
+    geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5) +
+    geom_line() + facet_wrap(Locality ~ Habitat, scales ='free_y') +
+    labs(x = "Julian night", y ="prop of hours per night with batpass>0")
+plt2
+
+dev.off()
+
+```
+
+
+# Now with LRE commuting 
+
+# Now with SRE feeding 
+
+# Now with SRE commuting 
 
 
 
-
+### GOAL: Recreate the effects plot showing differences in habitat usage... but can we / should we do this with the dataset separated into 3 parts? 
