@@ -176,37 +176,80 @@ m1 <- gam(cbind(yes_batpass,no_batpass) ~
               ti(temp_mean,wind_mean) ,                      #interaction between temp and wind
               data = bats_tot, method = "REML",                  #REML is not default, but is highly recommended by experts
               family = binomial, select=TRUE)                #may have to shift to quasibinomial if overdispersion, select = TRUE gives you automatic model selection
-summary(m1) #All terms are significant, but we have to perform model validation
 
+summary(m1) # not *quite* all terms significant - not Locality or jnight*Habitat 
+# output below 
 ```
+________________________________________________________________________________
+summary(m1):
+Family: binomial 
+Link function: logit 
+
+Formula:
+cbind(yes_batpass, no_batpass) ~ s(Locality, bs = "re") + 
+    s(jnight, by = Habitat, bs = "gp", k = 90) + Habitat + 
+    s(temp_mean) + s(wind_mean) + ti(temp_mean, wind_mean)
+
+Parametric coefficients:
+                  Estimate Std. Error z value Pr(>|z|)    
+(Intercept)       -0.03617    0.22151  -0.163     0.87    
+HabitatNatural     2.55800    0.29955   8.539  < 2e-16 ***
+HabitatTurbinePad  3.24277    0.46442   6.982  2.9e-12 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Approximate significance of smooth terms:
+                                           edf Ref.df Chi.sq  p-value    
+s(Locality)                          0.3433791      6  0.358 0.386901    
+s(jnight):HabitatMeteorologicalTower 0.0000476     72  0.000 0.877886    
+s(jnight):HabitatNatural             2.5330933     87  8.624 0.012154 *  
+s(jnight):HabitatTurbinePad          5.6185246     88 40.312  < 2e-16 ***
+s(temp_mean)                         2.2539415      9 20.685 1.02e-06 ***
+s(wind_mean)                         3.2134647      9 20.946 7.11e-06 ***
+ti(temp_mean,wind_mean)              4.8139882     16 17.980 0.000105 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+R-sq.(adj) =  0.369   Deviance explained = 37.5%
+-REML = 319.49  Scale est. = 1         n = 951
+________________________________________________________________________________
 
 
-#The reason why I use GAM with a rather simple random effect instead of GAMM, is that there are fewer options (e.g., distributions) available in GAMM
+### Katrine: 
+The reason why I use GAM with a rather simple random effect instead of GAMM, is that there are fewer options (e.g., distributions) available in GAMM
 
-#Model validation (may also use dHARMA to get more fancy validation plots)
-#Note that validation if binomial models is usually a pain and does not give meaningful validation plots
-#However, it works in our case, because of the aggregated nature of the data :-)
-#I found a similar example in https://www.youtube.com/watch?v=sgw4cu8hrZM&t=4038s 
+Model validation (may also use dHARMA to get more fancy validation plots)
+Note that validation if binomial models is usually a pain and does not give meaningful validation plots
+However, it works in our case, because of the aggregated nature of the data :-)
+I found a similar example in https://www.youtube.com/watch?v=sgw4cu8hrZM&t=4038s 
 
+
+```{r}
 par(mfrow = c(2,2))
 gam.check(m1)           #look at the plots, but also the output to check if k needs to be adjusted
 gam.check(m1, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
 
 overdispersion.m1 <- sum( residuals(m1, "pearson")^2 ) / m1$df.residual
-overdispersion.m1 
+overdispersion.m1
+# 0.80653 - looking good! 
+
+# From Katrine's Step3B GAM modelling script: 
 #[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
 
+```
 
 
-#Basis dimension (k) checking results: The k-index should be approx. 1 or larger
-#Play play around with k....
+# Basis dimension (k) checking results: 
+The k-index should be approx. 1 or larger
+Play play around with k....
 
-
+```{r}
 #plot(m1, pages=1,scheme=2,shade=TRUE)
 plot(m1, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
 
 draw(m1, scales ="free")         #function 'draw' is from package 'gratia'
 draw(m1, scales ="fixed")
+```
 
 
 #model temperature as linear effect
