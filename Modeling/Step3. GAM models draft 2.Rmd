@@ -169,7 +169,6 @@ summary(bats_tot)
 #Fitting he full model (I recommend not making the model more complex than this)
 #Will have to do trial-and-error to get the k right
 
-
 ```{r}
 m1 <- gam(cbind(yes_batpass,no_batpass) ~
               s(Locality, bs = "re") +                       #bs = "re" is equivalent to adding Locality as random intercept in a mixed model (GAMM)
@@ -303,7 +302,9 @@ Only ti(temp_mean, wind_mean) is significant... and now Locality is NA, why woul
 ```{r}
 
 par(mfrow = c(2,2))
-gam.check(m2, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
+gam.check(m2)
+gam.check(m2, rep=500)  
+#rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
 
 # Method: REML   Optimizer: outer newton
 # full convergence after 18 iterations.
@@ -325,6 +326,20 @@ gam.check(m2, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the o
 # ---
 # Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
+
+### Interpretting gam.checl() output
+## First check if the model converges - this does after 21 iterations!
+## If it didn't then the results would not be meaningful 
+## Now each smooth term is evaluated to see if the residuals of these terms are randomly distributed. 
+## If the p value is low for a smooth term, then the residuals are not random and most likely the K value should be increased. 
+## In this case, the p value of tensor product interaction term (ti) for  temp and mean is very low and the current k value is 16. Notice that the other k values on the smooth terms are either 9 or close to 90. 
+## Tensor product smooths and interaction, playing with k for these types of terms in not the same as for normal smooth terms... need to specify both the kvalues i.e. k = c(4,5) 
+
+## quick rundown on some of the lexicon behind tensor terms: 
+#   te() is like x*Z or x + z + x:z if you want to write it all out
+#   ti() is like X:Z only
+## 
+
 overdispersion.m2 <- sum( residuals(m2, "pearson")^2 ) / m2$df.residual
 overdispersion.m2 
 # Now at [1] 0.7804294, before was #[1] 1.02326 in Katrine's original script 
@@ -343,200 +358,202 @@ removed #1.47% of data excluded (previously 1.7%)
 ```
 
 
-# Re-fit with pruned dataset
-```{r}
-
-m2b <- gam(cbind(yes_batpass,no_batpass) ~
-            s(Locality, bs = "re") +                      
-            s(jnight, by = Habitat, bs = "gp", k =85) +    
-            Habitat +                                      
-            temp_mean +                                 
-            s(wind_mean, k=12) +                                 
-            ti(temp_mean,wind_mean) ,                      
-          data = bats_prune, method = "REML",                  
-          family = binomial, select=TRUE)              
-summary(m2b) 
-
-```
-________________________________________________________________________________
-Family: binomial 
-Link function: logit 
-
-Formula:
-cbind(yes_batpass, no_batpass) ~ s(Locality, bs = "re") + 
-    s(jnight, by = Habitat, bs = "gp", k = 85) + Habitat + 
-    temp_mean + s(wind_mean, k = 12) + ti(temp_mean, wind_mean)
-
-Parametric coefficients:
-                  Estimate Std. Error z value Pr(>|z|)    
-(Intercept)       -4.42141    0.90313  -4.896 9.80e-07 ***
-HabitatNatural     2.55878    0.35803   7.147 8.88e-13 ***
-HabitatTurbinePad  3.21698    0.48662   6.611 3.82e-11 ***
-temp_mean          0.29934    0.05491   5.451 5.00e-08 ***
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-Approximate significance of smooth terms:
-                                           edf Ref.df Chi.sq p-value    
-s(Locality)                          1.467e+00      6  1.864  0.2618    
-s(jnight):HabitatMeteorologicalTower 5.539e-05     68  0.000  0.7122    
-s(jnight):HabitatNatural             2.308e+00     82  6.090  0.0438 *  
-s(jnight):HabitatTurbinePad          4.930e+00     83 37.827  <2e-16 ***
-s(wind_mean)                         9.484e-05     11  0.000  0.6290    
-ti(temp_mean,wind_mean)              8.058e+00     16 54.407  <2e-16 ***
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-R-sq.(adj) =  0.369   Deviance explained = 37.6%
--REML = 308.23  Scale est. = 1         n = 937
-________________________________________________________________________________
-
-The Locality factor is no longer NA
-
-strong evidence of positive effect: 
-s(jnight):HabitatTurbinePad
- ti(temp_mean,wind_mean)
- 
- some evidence of positive effect:
- s(jnight):HabitatNatural 
-
-```{r}
-par(mfrow = c(2,2))
-gam.check(m2b, rep=500) 
-
-overdispersion.m2b <- sum( residuals(m2b, "pearson")^2 ) / m2b$df.residual
-overdispersion.m2b
-#Now 0.8011895, was 1.034198
-
-#k-index is still a bit too low for all variables, but I move on for now to demonstrate prediction (sketching results)
-
-bmp(file.path(output_today, "checking k dimensions m2b bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
-plot(m2b, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
-
-draw(m2b, scales ="free")         #function 'draw' is from package 'gratia'
-draw(m2b, scales ="fixed")
-
-dev.off() 
-
-# take a closer look at wind and temperature
-
-bmp(file.path(output_today, "view gam for wind and temp m2b bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
-
-par(mfrow = c(1,2))
-vis.gam(m2b, view = c("temp_mean", "wind_mean"))    #Not a very elegant plot, you can find prettier solutions, but helps understand the interaction between tempp and wind
-vis.gam(m2b, view = c("wind_mean", "temp_mean"))
-
-dev.off()
 
 
-```
+<!-- # Re-fit with pruned dataset -->
+<!-- ```{r} -->
 
-#Sketching the results - difference between Habitats
-```{r}
-levels(bats_prune$Habitat)
-# "MeteorologicalTower" "Natural"             "TurbinePad"   
+<!-- m2b <- gam(cbind(yes_batpass,no_batpass) ~ -->
+<!--             s(Locality, bs = "re") +                       -->
+<!--             s(jnight, by = Habitat, bs = "gp", k =85) +     -->
+<!--             Habitat +                                       -->
+<!--             temp_mean +                                  -->
+<!--             s(wind_mean, k=12) +                                  -->
+<!--             ti(temp_mean,wind_mean) ,                       -->
+<!--           data = bats_prune, method = "REML",                   -->
+<!--           family = binomial, select=TRUE)               -->
+<!-- summary(m2b)  -->
 
-levels(bats_prune$Locality)
-# [1] "MeteorologicalTower" "Turbine10"           "Turbine11"           "Turbine14"          
-# [5] "Turbine2"            "Turbine4"            "Turbine8"            "Turbine9"
+<!-- ``` -->
+<!-- ________________________________________________________________________________ -->
+<!-- Family: binomial  -->
+<!-- Link function: logit  -->
 
-pdata <- with(bats_prune,
-              expand.grid(temp_mean=14,
-                          wind_mean = 6,
-                          Habitat = c("Natural", "TurbinePad"),
-                          Locality = c("Turbine14"),
-                          jnight = seq(min(jnight), max(jnight), 1))) #1 to keep the integer format
+<!-- Formula: -->
+<!-- cbind(yes_batpass, no_batpass) ~ s(Locality, bs = "re") +  -->
+<!--     s(jnight, by = Habitat, bs = "gp", k = 85) + Habitat +  -->
+<!--     temp_mean + s(wind_mean, k = 12) + ti(temp_mean, wind_mean) -->
 
-head(pdata)
-tail(pdata)
+<!-- Parametric coefficients: -->
+<!--                   Estimate Std. Error z value Pr(>|z|)     -->
+<!-- (Intercept)       -4.42141    0.90313  -4.896 9.80e-07 *** -->
+<!-- HabitatNatural     2.55878    0.35803   7.147 8.88e-13 *** -->
+<!-- HabitatTurbinePad  3.21698    0.48662   6.611 3.82e-11 *** -->
+<!-- temp_mean          0.29934    0.05491   5.451 5.00e-08 *** -->
+<!-- --- -->
+<!-- Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1 -->
 
-fit <- data.frame(predict(m2b, newdata=pdata, se.fit=TRUE, type = 'response'))
-fit <- transform(fit, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
-pred <- cbind(pdata,fit)
+<!-- Approximate significance of smooth terms: -->
+<!--                                            edf Ref.df Chi.sq p-value     -->
+<!-- s(Locality)                          1.467e+00      6  1.864  0.2618     -->
+<!-- s(jnight):HabitatMeteorologicalTower 5.539e-05     68  0.000  0.7122     -->
+<!-- s(jnight):HabitatNatural             2.308e+00     82  6.090  0.0438 *   -->
+<!-- s(jnight):HabitatTurbinePad          4.930e+00     83 37.827  <2e-16 *** -->
+<!-- s(wind_mean)                         9.484e-05     11  0.000  0.6290     -->
+<!-- ti(temp_mean,wind_mean)              8.058e+00     16 54.407  <2e-16 *** -->
+<!-- --- -->
+<!-- Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1 -->
 
-head(pred)
+<!-- R-sq.(adj) =  0.369   Deviance explained = 37.6% -->
+<!-- -REML = 308.23  Scale est. = 1         n = 937 -->
+<!-- ________________________________________________________________________________ -->
 
-#write.csv(pred, file.path(output_today, "prediction_m2b.csv"))
+<!-- The Locality factor is no longer NA -->
 
-bmp(file.path(output_today, "predictions m2b bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
+<!-- strong evidence of positive effect:  -->
+<!-- s(jnight):HabitatTurbinePad -->
+<!--  ti(temp_mean,wind_mean) -->
 
-##windows()
-plt2 <- ggplot(pred, aes(x=jnight, y = fit, group = factor(Habitat))) +
-    
-    geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5) +
-    geom_line() + facet_wrap(Locality ~ Habitat, scales ='free_y') +
-    labs(x = "Julian night", y ="prop of hours per night with batpass>0")
-plt2
+<!--  some evidence of positive effect: -->
+<!--  s(jnight):HabitatNatural  -->
 
-dev.off()
+<!-- ```{r} -->
+<!-- par(mfrow = c(2,2)) -->
+<!-- gam.check(m2b, rep=500)  -->
 
-```
+<!-- overdispersion.m2b <- sum( residuals(m2b, "pearson")^2 ) / m2b$df.residual -->
+<!-- overdispersion.m2b -->
+<!-- #Now 0.8011895, was 1.034198 -->
 
-# Predicting wind at different levels of temperature
-```{r}
+<!-- #k-index is still a bit too low for all variables, but I move on for now to demonstrate prediction (sketching results) -->
 
-pdata2 <- with(bats_prune,
-              expand.grid(wind_mean = seq(min(wind_mean), max(wind_mean), length = 300),
-                          temp_mean = c(12,15,20),
-                          Habitat = c("TurbinePad"),
-                          Locality = c("Turbine14"),
-                          jnight = mean(jnight)))
+<!-- bmp(file.path(output_today, "checking k dimensions m2b bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350) -->
+<!-- plot(m2b, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE) -->
 
+<!-- draw(m2b, scales ="free")         #function 'draw' is from package 'gratia' -->
+<!-- draw(m2b, scales ="fixed") -->
 
-head(pdata2)
+<!-- dev.off()  -->
 
-fit <- data.frame(predict(m2b, newdata=pdata2, se.fit=TRUE, type = 'response'))
-fit <- transform(fit, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
-pred2 <- cbind(pdata2,fit)
+<!-- # take a closer look at wind and temperature -->
 
-head(pred2)
+<!-- bmp(file.path(output_today, "view gam for wind and temp m2b bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350) -->
 
+<!-- par(mfrow = c(1,2)) -->
+<!-- vis.gam(m2b, view = c("temp_mean", "wind_mean"))    #Not a very elegant plot, you can find prettier solutions, but helps understand the interaction between tempp and wind -->
+<!-- vis.gam(m2b, view = c("wind_mean", "temp_mean")) -->
 
-new_labels <- c("12" = "temp 12", "15" = "temp 15", "20" = "temp 20")
-
-bmp(file.path(output_today, "prediction of wind at dif temperatures m2b bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
-
-plt4 <- ggplot(pred2, aes(x=wind_mean, y = fit, group = factor(temp_mean))) +
-  geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5) +
-  geom_line() + facet_wrap(~ temp_mean,scales ='fixed', labeller = labeller(temp_mean = new_labels)) +
-  labs(x = "Average wind speed m/s", y ="Proportion of hours per night with batpass>0")
-plt4
-
-dev.off()
-```
-
-
-# Temp at different levels of wind
-```{r}
-pdata <- with(bats_prune,
-              expand.grid(temp_mean = seq(min(temp_mean), max(temp_mean), length = 300),
-                          wind_mean = c(4,7,10),
-                          Habitat = c("TurbinePad"),
-                          Locality = c("Turbine14"),
-                          jnight = 212))
+<!-- dev.off() -->
 
 
-head(pdata)
+<!-- ``` -->
 
-fit <- data.frame(predict(m2b, newdata=pdata, se.fit=TRUE, type = 'response'))
-fit <- transform(fit, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
-pred <- cbind(pdata,fit)
+<!-- #Sketching the results - difference between Habitats -->
+<!-- ```{r} -->
+<!-- levels(bats_prune$Habitat) -->
+<!-- # "MeteorologicalTower" "Natural"             "TurbinePad"    -->
 
-head(pred)
+<!-- levels(bats_prune$Locality) -->
+<!-- # [1] "MeteorologicalTower" "Turbine10"           "Turbine11"           "Turbine14"           -->
+<!-- # [5] "Turbine2"            "Turbine4"            "Turbine8"            "Turbine9" -->
 
-new_labels <- c("4" = "wind 4m/s", "7" = "wind 7m/s", "10" = "wind 10m/s")
+<!-- pdata <- with(bats_prune, -->
+<!--               expand.grid(temp_mean=14, -->
+<!--                           wind_mean = 6, -->
+<!--                           Habitat = c("Natural", "TurbinePad"), -->
+<!--                           Locality = c("Turbine14"), -->
+<!--                           jnight = seq(min(jnight), max(jnight), 1))) #1 to keep the integer format -->
 
-bmp(file.path(output_today, "prediction of temp at dif wind speeds m2b bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
+<!-- head(pdata) -->
+<!-- tail(pdata) -->
 
-##windows()
-plt4 <- ggplot(pred, aes(x=temp_mean, y = fit, group = factor(wind_mean))) +
-  geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5) +
-  geom_line() + facet_wrap(~ wind_mean,scales ='fixed', labeller = labeller(wind_mean = new_labels)) +
-  labs(x = expression(paste("Temperature [",degree,"C]")), y ="Proportion of hours per night with batpass>0")
-plt4 #Ouch the degree synbol turned out as a square...need to fix that at some point
+<!-- fit <- data.frame(predict(m2b, newdata=pdata, se.fit=TRUE, type = 'response')) -->
+<!-- fit <- transform(fit, upper = fit + (2*se.fit), lower = fit-(2*se.fit)) -->
+<!-- pred <- cbind(pdata,fit) -->
 
-dev.off()
-```
+<!-- head(pred) -->
+
+<!-- #write.csv(pred, file.path(output_today, "prediction_m2b.csv")) -->
+
+<!-- bmp(file.path(output_today, "predictions m2b bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350) -->
+
+<!-- ##windows() -->
+<!-- plt2 <- ggplot(pred, aes(x=jnight, y = fit, group = factor(Habitat))) + -->
+
+<!--     geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5) + -->
+<!--     geom_line() + facet_wrap(Locality ~ Habitat, scales ='free_y') + -->
+<!--     labs(x = "Julian night", y ="prop of hours per night with batpass>0") -->
+<!-- plt2 -->
+
+<!-- dev.off() -->
+
+<!-- ``` -->
+
+<!-- # Predicting wind at different levels of temperature -->
+<!-- ```{r} -->
+
+<!-- pdata2 <- with(bats_prune, -->
+<!--               expand.grid(wind_mean = seq(min(wind_mean), max(wind_mean), length = 300), -->
+<!--                           temp_mean = c(12,15,20), -->
+<!--                           Habitat = c("TurbinePad"), -->
+<!--                           Locality = c("Turbine14"), -->
+<!--                           jnight = mean(jnight))) -->
+
+
+<!-- head(pdata2) -->
+
+<!-- fit <- data.frame(predict(m2b, newdata=pdata2, se.fit=TRUE, type = 'response')) -->
+<!-- fit <- transform(fit, upper = fit + (2*se.fit), lower = fit-(2*se.fit)) -->
+<!-- pred2 <- cbind(pdata2,fit) -->
+
+<!-- head(pred2) -->
+
+
+<!-- new_labels <- c("12" = "temp 12", "15" = "temp 15", "20" = "temp 20") -->
+
+<!-- bmp(file.path(output_today, "prediction of wind at dif temperatures m2b bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350) -->
+
+<!-- plt4 <- ggplot(pred2, aes(x=wind_mean, y = fit, group = factor(temp_mean))) + -->
+<!--   geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5) + -->
+<!--   geom_line() + facet_wrap(~ temp_mean,scales ='fixed', labeller = labeller(temp_mean = new_labels)) + -->
+<!--   labs(x = "Average wind speed m/s", y ="Proportion of hours per night with batpass>0") -->
+<!-- plt4 -->
+
+<!-- dev.off() -->
+<!-- ``` -->
+
+
+<!-- # Temp at different levels of wind -->
+<!-- ```{r} -->
+<!-- pdata <- with(bats_prune, -->
+<!--               expand.grid(temp_mean = seq(min(temp_mean), max(temp_mean), length = 300), -->
+<!--                           wind_mean = c(4,7,10), -->
+<!--                           Habitat = c("TurbinePad"), -->
+<!--                           Locality = c("Turbine14"), -->
+<!--                           jnight = 212)) -->
+
+
+<!-- head(pdata) -->
+
+<!-- fit <- data.frame(predict(m2b, newdata=pdata, se.fit=TRUE, type = 'response')) -->
+<!-- fit <- transform(fit, upper = fit + (2*se.fit), lower = fit-(2*se.fit)) -->
+<!-- pred <- cbind(pdata,fit) -->
+
+<!-- head(pred) -->
+
+<!-- new_labels <- c("4" = "wind 4m/s", "7" = "wind 7m/s", "10" = "wind 10m/s") -->
+
+<!-- bmp(file.path(output_today, "prediction of temp at dif wind speeds m2b bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350) -->
+
+<!-- ##windows() -->
+<!-- plt4 <- ggplot(pred, aes(x=temp_mean, y = fit, group = factor(wind_mean))) + -->
+<!--   geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5) + -->
+<!--   geom_line() + facet_wrap(~ wind_mean,scales ='fixed', labeller = labeller(wind_mean = new_labels)) + -->
+<!--   labs(x = expression(paste("Temperature [",degree,"C]")), y ="Proportion of hours per night with batpass>0") -->
+<!-- plt4 #Ouch the degree synbol turned out as a square...need to fix that at some point -->
+
+<!-- dev.off() -->
+<!-- ``` -->
  
  From Katrine: 
 <!-- #But it is really a hassel to have to predict for levels of Locality... -->
@@ -545,9 +562,280 @@ dev.off()
 <!-- #But there is a way of excluding terms when predicting, see: https://cran.r-project.org/web/packages/tidymv/vignettes/predict-gam.html -->
 <!-- #But I have not had time to figure this out yet. -->
 
-##############################################################################################
+--------------------------------------------------------------------------------
 
-Similar approach, now with 4 differen datasets - 
+# Experitmenting with different k levels for the total bat dataset 
+m2 - for wind temp interaction, K = 90
+
+# m2: y = total binary nightly bat pass, k = 90 for wind and temp 
+
+```{r}
+m2 <- gam(cbind(yes_batpass,no_batpass) ~
+              s(Locality, bs = "re") +                      
+              s(jnight, by = Habitat, bs = "gp", k =90) +    
+              Habitat +                                      
+              s(temp_mean) +                                 
+              s(wind_mean) +                                 
+              ti(temp_mean,wind_mean) ,                      
+              data = bats_tot, method = "REML",                  
+              family = binomial, select=TRUE)                #
+
+summary(m2) 
+```
+________________________________________________________________________________
+
+Family: binomial 
+Link function: logit 
+
+Formula:
+cbind(yes_batpass, no_batpass) ~ s(Locality, bs = "re") + 
+    s(jnight, by = Habitat, bs = "gp", k = 80) + Habitat + 
+    s(temp_mean) + s(wind_mean) + ti(temp_mean, wind_mean)
+
+Parametric coefficients:
+                  Estimate Std. Error z value Pr(>|z|)    
+(Intercept)       -0.03617    0.22151  -0.163     0.87    
+HabitatNatural     2.55799    0.29955   8.539  < 2e-16 ***
+HabitatTurbinePad  3.24270    0.46439   6.983 2.89e-12 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Approximate significance of smooth terms:
+                                           edf Ref.df Chi.sq  p-value    
+s(Locality)                          3.434e-01      6  0.358 0.386902    
+s(jnight):HabitatMeteorologicalTower 7.701e-05     65  0.000 0.877862    
+s(jnight):HabitatNatural             2.533e+00     78  8.624 0.012154 *  
+s(jnight):HabitatTurbinePad          5.617e+00     78 40.311  < 2e-16 ***
+s(temp_mean)                         2.254e+00      9 20.685 1.02e-06 ***
+s(wind_mean)                         3.213e+00      9 20.945 7.12e-06 ***
+ti(temp_mean,wind_mean)              4.814e+00     16 17.980 0.000105 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+R-sq.(adj) =  0.369   Deviance explained = 37.5%
+-REML = 319.49  Scale est. = 1         n = 951
+
+________________________________________________________________________________
+
+
+```{r}
+par(mfrow = c(2,2))
+gam.check(m1)           #look at the plots, but also the output to check if k needs to be adjusted
+gam.check(m1, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
+
+overdispersion.m1 <- sum( residuals(m1, "pearson")^2 ) / m1$df.residual
+overdispersion.m1
+# 0.80653 - looking good! 
+
+# From Katrine's Step3B GAM modelling script: 
+#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
+
+```
+
+
+# Basis dimension (k) checking results: 
+The k-index should be approx. 1 or larger
+Play play around with k....
+
+```{r}
+#plot(m1, pages=1,scheme=2,shade=TRUE)
+bmp(file.path(output_today, "checking k dimensions m1 bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
+
+plot(m1, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
+
+draw(m1, scales ="free")         #function 'draw' is from package 'gratia'
+draw(m1, scales ="fixed")
+
+dev.off() 
+```
+
+# m2 
+# model temperature as linear effect, assign higher k values to the ti() term 
+
+```{r}
+m2 <- gam(cbind(yes_batpass,no_batpass) ~
+            s(Locality, bs = "re") +                      
+            s(jnight, by = Habitat, bs = "gp", k =90) +    
+            Habitat +                                      
+            temp_mean +                                 
+            s(wind_mean) +                                 
+            ti(temp_mean,wind_mean, k = c(20, 20)) ,                      
+          data = bats_tot, method = "REML",                  
+          family = binomial, select=TRUE)              
+summary(m2) 
+
+```
+
+summary(*m2*)
+Family: binomial 
+Link function: logit 
+
+Formula:
+cbind(yes_batpass, no_batpass) ~ s(Locality, bs = "re") + 
+    s(jnight, by = Habitat, bs = "gp", k = 90) + Habitat + 
+    temp_mean + s(wind_mean) + ti(temp_mean, wind_mean, k = c(20, 
+    20))
+
+Parametric coefficients:
+                  Estimate Std. Error z value Pr(>|z|)    
+(Intercept)       -2.64438    1.16274  -2.274   0.0229 *  
+HabitatNatural     2.71720    0.38548   7.049 1.80e-12 ***
+HabitatTurbinePad  3.29057    0.48947   6.723 1.78e-11 ***
+temp_mean          0.17623    0.07177   2.456   0.0141 *  
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Approximate significance of smooth terms:
+                                           edf Ref.df Chi.sq  p-value    
+s(Locality)                          1.620e+00      6  2.054  0.26070    
+s(jnight):HabitatMeteorologicalTower 1.673e-04     72  0.000  0.59525    
+s(jnight):HabitatNatural             2.627e+00     87  8.375  0.00845 ** 
+s(jnight):HabitatTurbinePad          4.377e+00     88 32.974  < 2e-16 ***
+s(wind_mean)                         7.670e+00      9 39.700  < 2e-16 ***
+ti(temp_mean,wind_mean)              2.578e+01     81 57.695 4.35e-06 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+R-sq.(adj) =  0.444   Deviance explained = 46.5%
+-REML = 315.42  Scale est. = 1         n = 951
+
+```{r}
+windows()
+par(mfrow = c(2,2))
+gam.check(m2)           #look at the plots, but also the output to check if k needs to be adjusted
+gam.check(m2, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
+
+# Now the smooth terms pass the basis dimension test! 
+
+overdispersion.m2 <- sum( residuals(m2, "pearson")^2 ) / m2$df.residual
+overdispersion.m2
+# 0.5493729- under dispersed:( 
+
+# From Katrine's Step3B GAM modelling script: 
+#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
+
+```
+
+
+# Basis dimension (k) checking results: 
+The k-index should be approx. 1 or larger
+Play play around with k....
+
+```{r}
+#plot(m1, pages=1,scheme=2,shade=TRUE)
+bmp(file.path(output_today, "checking k dimensions m2 bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
+windows()
+plot(m2, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
+
+draw(m2, scales ="free")         #function 'draw' is from package 'gratia'
+draw(m2, scales ="fixed")
+# wind is too wiggly, but there is no relationship for the met tower(probably too little data...) 
+dev.off() 
+```
+
+# m3 
+### Try once more with slightly lower k values for the ti() term 
+
+```{r}
+m3 <- gam(cbind(yes_batpass,no_batpass) ~
+            s(Locality, bs = "re") +                      
+            s(jnight, by = Habitat, bs = "gp", k =90) +    
+            Habitat +                                      
+            temp_mean +                                 
+            s(wind_mean) +                                 
+            ti(temp_mean,wind_mean, k = c(10, 10)) ,                      
+          data = bats_tot, method = "REML",                  
+          family = binomial, select=TRUE)              
+summary(m3) 
+
+```
+
+summary(*m3*)
+Family: binomial 
+Link function: logit 
+
+Formula:
+cbind(yes_batpass, no_batpass) ~ s(Locality, bs = "re") + 
+    s(jnight, by = Habitat, bs = "gp", k = 90) + Habitat + 
+    temp_mean + s(wind_mean) + ti(temp_mean, wind_mean, k = c(10, 
+    10))
+
+Parametric coefficients:
+                  Estimate Std. Error z value Pr(>|z|)    
+(Intercept)       -4.67455    0.94713  -4.935 8.00e-07 ***
+HabitatNatural     2.58345    0.30044   8.599  < 2e-16 ***
+HabitatTurbinePad  3.22108    0.44943   7.167 7.67e-13 ***
+temp_mean          0.31458    0.05915   5.319 1.05e-07 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+Approximate significance of smooth terms:
+                                           edf Ref.df Chi.sq p-value    
+s(Locality)                          2.415e-01      6  0.249  0.3928    
+s(jnight):HabitatMeteorologicalTower 3.293e-04     69  0.000  0.6015    
+s(jnight):HabitatNatural             2.762e+00     87  9.344  0.0089 ** 
+s(jnight):HabitatTurbinePad          4.927e+00     88 38.850  <2e-16 ***
+s(wind_mean)                         7.987e-05      9  0.000  0.2455    
+ti(temp_mean,wind_mean)              1.751e+01     80 72.322  <2e-16 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+R-sq.(adj) =  0.397   Deviance explained = 40.2%
+-REML = 317.61  Scale est. = 1         n = 951
+
+```{r}
+windows()
+par(mfrow = c(2,2))
+gam.check(m3)           #look at the plots, but also the output to check if k needs to be adjusted
+gam.check(m3, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
+
+# Now the smooth terms pass the basis dimension test! 
+
+overdispersion.m3 <- sum( residuals(m3, "pearson")^2 ) / m3$df.residual
+overdispersion.m3
+# 0.5493729- under dispersed:( 
+
+# From Katrine's Step3B GAM modelling script: 
+#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
+
+```
+
+
+# Basis dimension (k) checking results: 
+The k-index should be approx. 1 or larger
+Play play around with k....
+
+```{r}
+#plot(m1, pages=1,scheme=2,shade=TRUE)
+bmp(file.path(output_today, "checking k dimensions m3 bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
+windows()
+plot(m3, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
+
+draw(m3, scales ="free")         #function 'draw' is from package 'gratia'
+draw(m3, scales ="fixed")
+# wind is too wiggly, but there is no relationship for the met tower(probably too little data...) 
+dev.off() 
+```
+
+
+# What did we learn?
+It looks like model2, with the ti(temp_mean,wind_mean) k value adjusted to k = c(20,20) passes the gam.check test but then the model is a bit underdispersed. 
+
+To Address under dispersion in binary GAMs:
+
+https://dergipark.org.tr/en/download/article-file/922496 
+This article suggests using an extended Altham distribution (EAD) family for under dispersed binomial count data- 
+however I cannot find any commands in the mgcv package that will allow me to call that distribution.
+
+The MM package does have the option to use this family but before changing packages, it is perhaps wiser to try and use counts as a response variable 
+
+https://cran.r-project.org/web/packages/MM/vignettes/Gianfranco.pdf 
+
+
+
+
+--------------------------------------------------------------------------------
+Similar approach, now with 4 different data sets - 
 
 LRE feeding
 LRE commuting
@@ -1103,6 +1391,27 @@ plt2
 dev.off()
 ```
 
+### Notes from meeting with Katrine 29.11.2022
 
+1. For the total bat data set, with y = binary nightly bat activity 
+------------------------------------------------------------------------------------
+a. Adjust the k value for the bats_tot model to find one that better suits the data
+b. Illustrate the wind/temperature cutoffs. 
+- At some point, it may be necessary to re-aggregate the weather data to Facility rather than across both facilities
+------------------------------------------------------------------------------------
 
-### GOAL: Recreate the effects plot showing differences in habitat usage... but can we / should we do this with the dataset separated into 3 parts? 
+2. For the guild / behavior specific data sets 
+------------------------------------------------------------------------------------
+a. Find appropriate k values for each model type
+b. Re run with y = bat pass count (bat pass sum, bat pass mean) rather than the binary response. 
+c. Diagnose under dispersion where it exists 
+d. Experiment with leaving out or including the interaction between wind and temperature
+e. Make figures that show the overall activity at the different sites across time (perhaps include the mean or median as an added line with CI's) 
+------------------------------------------------------------------------------------
+
+3. For the bat / insect data
+------------------------------------------------------------------------------------
+a. Create continuous workflow from the bottom up and make it accessible on GitHub 
+b. Have a dataset and a GitHub friendly R script that Katrine can use to start working with the data by 7. Dec 
+------------------------------------------------------------------------------------
+
