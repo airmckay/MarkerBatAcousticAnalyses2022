@@ -137,13 +137,13 @@ kbl(summarize(bats1., type = "factor", variables = "Facility"))  %>%  kable_styl
 names(bats1.)
 bats2. <- bats1. %>% select(behavior, guild, Site, Habitat, Locality, Facility, taxa) 
 
-st(bats2.)
+st(bats2.) # summary table of all the relevant factor levels across the whole dataset
 
-# will find a way to automatically print this table later... 
-# dev.print(device = .png, 
-#           filename = file.path(output_today, "summarytable.png"),
-#           width = 480, 
-#           height = 300)
+# export the html file: 
+
+#st(bats2., file = file.path(output_today, "total summary table"))
+
+
 ```
 
 
@@ -549,7 +549,6 @@ summary(nbats4)
 # right now I do not have UTM or day length included but I can add those here later. 
 
 ```
-
 
 2. Make it binary! 
 ```{r}
