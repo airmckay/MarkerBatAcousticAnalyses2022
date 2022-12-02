@@ -82,6 +82,8 @@ output_today <- dir.name
 # test test test
 ```
 
+
+
 ```{r}
 # TIDYING! 
 ##########################################################
@@ -269,8 +271,6 @@ manual_output9 <- manual_output8 %>% select(INDIR, OUTDIR, IN.FILE, DURATION,
          AUTO.ID., PULSES, MATCH.RATIO, 
          MANUAL.ID, manual_pass_clean9, behavior) %>% 
          rename(manual.id = manual_pass_clean9) 
-
-#write.csv(manual_output9, "~/1. PhD_Main/GitHub_link/MarkerBatAcousticAnalyses/MarkerBatAcousticAnalyses/From Manual output to nightly aggregated/Outputs/Outputs_tidied/MarkerCleanedCombinedManualIDs_withnoise.csv")
 
 ##########################################################
 #### drop Noise files  ####
