@@ -1,6 +1,8 @@
 ---
 title: "Marker bat acoustic models draft 2"
-output: html_document
+output:
+  word_document: default
+  html_document: default
 date: "2022-11-28"
 ---
 ### Notes from meeting with Katrine 29.11.2022
@@ -128,10 +130,8 @@ output_today
  https://www.youtube.com/watch?v=q4_t8jXcQgc
  https://www.youtube.com/watch?v=sgw4cu8hrZM&t=4038s
  
- #############################################################################
- ################ "bats_tot" ################
- #############################################################################
- 
+--------------------------------------------------------------------------------
+
 The "bats_tot" dataset 
 Nightly aggregated total bat activity 
 
@@ -219,7 +219,6 @@ The k-index should be approx. 1 or larger
 Play play around with k....
 
 ```{r}
-#plot(m1, pages=1,scheme=2,shade=TRUE)
 bmp(file.path(output_today, "checking k dimensions m1 bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
 
 plot(m1, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
@@ -294,7 +293,6 @@ overdispersion.m2
 
 ```
 
-
 ### Basis dimension (k) checking results: 
 
 ```{r}
@@ -323,7 +321,7 @@ vis.gam(m2, view = c("wind_mean", "temp_mean"))
 
 ```
 
-# Recap
+## Recap
 
 This model is more under dispersed than the last one and the issue of an ill-fitting k value is still there.
 
@@ -347,9 +345,8 @@ Some notes from Katrine:
 
 --------------------------------------------------------------------------------
 
-
 # m3 
-### model temperature as linear effect, assign higher k values to the ti() term 
+### Model temperature as linear effect, assign higher k values to the ti() term 
 
 ```{r}
 m3 <- gam(cbind(yes_batpass,no_batpass) ~
@@ -520,7 +517,6 @@ overdispersion.m5
 
 ```
 
-
 ### Basis dimension (k) checking results: 
 
 ```{r}
@@ -552,8 +548,8 @@ vis.gam(m5, view = c("wind_mean", "temp_mean"))
 --------------------------------------------------------------------------------
 
 # m6
-### dataset does not include the met tower
-### otherwise, the same model as m1 
+### Dataset does not include the met tower
+### Otherwise, the same model as m1 
 ```{r}
 
 bats_ground <- bats_tot %>% filter(Habitat != "MeteorologicalTower") %>% droplevels
@@ -595,7 +591,6 @@ overdispersion.m6
 
 ```
 
-
 ### Basis dimension (k) checking results: 
 
 ```{r}
@@ -626,7 +621,7 @@ vis.gam(m6, view = c("wind_mean", "temp_mean"))
 --------------------------------------------------------------------------------
 
 # m7
-### dataset does not include the met tower
+### Dataset does not include the met tower
 ### otherwise, remove adjust k term in the 3 night by habitat term 
 
 
@@ -690,7 +685,7 @@ vis.gam(m7, view = c("wind_mean", "temp_mean"))
 ```
 
 --------------------------------------------------------------------------------
-# Recap
+## Recap
 
 Ultimately the goal for this model group is to determine how weather patterns influence bat activity across the park. 
 Therefore, it is better to include the met tower data. So pruning the dataset in this way is not helpful.
@@ -699,6 +694,7 @@ I could adjust high winds or temperatures to a certain cutoff to reduce some var
 --------------------------------------------------------------------------------
 
 # m8
+### Bats total dataset
 ### Adjust the k value of  s(jnight, by = Habitat, bs = "gp") to k = 15
 
 ```{r}
@@ -734,7 +730,6 @@ overdispersion.m8
 
 ```
 
-
 ### Basis dimension (k) checking results: 
 
 ```{r}
@@ -759,6 +754,7 @@ vis.gam(m8, view = c("wind_mean", "temp_mean"))
 
 ```
 
+## Recap:
 This slightly improved the overall model fit, so I will keep this model but add another manual k term to the s(wind_mean) term. 
 --------------------------------------------------------------------------------
 
@@ -860,7 +856,6 @@ overdispersion.m10
 #[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
 
 ```
-
 
 ### Basis dimension (k) checking results: 
 
@@ -1010,7 +1005,6 @@ vis.gam(m12, view = c("wind_mean", "temp_mean"))
 
 ```
 
-
 --------------------------------------------------------------------------------
 
 # m13
@@ -1049,7 +1043,6 @@ overdispersion.m13
 
 ```
 
-
 ### Basis dimension (k) checking results: 
 
 ```{r}
@@ -1074,7 +1067,6 @@ vis.gam(m13, view = c("wind_mean", "temp_mean"))
 
 ```
 
-
 --------------------------------------------------------------------------------
 
 # m14
@@ -1096,7 +1088,7 @@ summary(m14)
 
 
 ```{r}
-windows()
+#windows()
 par(mfrow = c(2,2))
 gam.check(m14)           #look at the plots, but also the output to check if k needs to be adjusted
 gam.check(m14, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
@@ -1111,7 +1103,6 @@ overdispersion.m14
 #[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
 
 ```
-
 
 ### Basis dimension (k) checking results: 
 
@@ -1206,15 +1197,16 @@ I am not sure what else to do at this point other than use a different response 
 --------------------------------------------------------------------------------
 
 # m16
+### y = batpass_prop
 ### s(Facility, bs = "re") rather than Locality 
 ```{r}
-m16 <- gam(cbind(batpass_prop) ~
+m16 <- gam(batpass_prop ~
               s(Facility, bs = "re") +                       
               s(jnight, by = Habitat, bs = "gp") +    
               Habitat +                                     
               temp_mean +                                
               s(wind_mean) +                                
-              ti(temp_mean,wind_mean) ,                      
+              ti(temp_mean,wind_mean),                      
               data = bats_tot, method = "REML",                 
               family = binomial, select=TRUE)                
 
@@ -1270,7 +1262,7 @@ vis.gam(m16, view = c("wind_mean", "temp_mean"))
 # m17
 ### s(Facility, bs = "re") rather than Locality 
 ```{r}
-m17 <- gam(cbind(batpass_prop) ~
+m17 <- gam(batpass_prop ~
               s(Facility, bs = "re") +                       
               s(jnight, by = Habitat, bs = "gp") +    
               Habitat +                                     
@@ -1352,7 +1344,7 @@ https://cran.r-project.org/web/packages/MM/vignettes/Gianfranco.pdf
 ### try model 1 with a negative binomial gamily insead of typical binomail
 ### Response variable = Batpass_sum
 ```{r}
-m18 <- gam(cbind(Batpass_sum) ~
+m18 <- gam(Batpass_sum ~
               s(Facility, bs = "re") +                       
               s(jnight, by = Habitat, bs = "gp") +    
               Habitat +                                     
@@ -1416,7 +1408,7 @@ vis.gam(m18, view = c("wind_mean", "temp_mean"))
 ### Response variable = Batpass_sum
 ### Adjust the k value on ti(temp_mean,wind_mean)
 ```{r}
-m19 <- gam(cbind(Batpass_sum) ~
+m19 <- gam(Batpass_sum ~
               s(Facility, bs = "re") +                       
               s(jnight, by = Habitat, bs = "gp") +    
               Habitat +                                     
@@ -1432,7 +1424,7 @@ summary(m19)
 
 
 ```{r}
-windows()
+#windows()
 par(mfrow = c(2,2))
 gam.check(m19)           #look at the plots, but also the output to check if k needs to be adjusted
 gam.check(m19, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
@@ -1593,87 +1585,84 @@ https://www.imsbio.co.jp/RGM/R_rdfile?f=itsadug/man/pvisgam.Rd&d=R_CC
 
 ```{r}
 
-
 # from this blog 
 # https://drmowinckels.io/blog/2019-11-16-plotting-gamm-interactions-with-ggplot2/
 
-
-------------------------------------------------------
-library(itsadug) 
-pvisgam(m20, view = c("wind_mean", "temp_mean")) 
-
-ct_int_pred <- expand.grid(temp_mean= c(8,10, 12, 14, 16, 18, 20),
-                          wind_mean = c(2, 4, 6, 8, 10, 12), 
-                          Habitat = levels(bats_tot$Habitat), 
-                          Locality = levels(bats_tot$Locality), 
-                          jnight = seq(min(bats_tot$jnight), max(bats_tot$jnight), 1))
-              
-ct_int_pred <- predict(m20, newdata = ct_int_pred, 
-                      se.fit = TRUE) %>%  
-  as_tibble() %>% 
-  cbind(ct_int_pred)
-
-dim(ct_int_pred)
-# 91728     7
-
-ggplot(ct_int_pred, aes(x=temp_mean, y=wind_mean)) + 
-  geom_tile(aes(fill = fit)) +
-  geom_contour(aes(z = fit), colour = "white")
-
-ct_int_pred %>%
-  ggplot(aes(x=wind_mean, y=fit)) +
-  geom_line(aes(colour=wind_mean))
-
-## This does not look all that great unfortunately 
-
-# from this:
-# https://stackoverflow.com/questions/73738521/how-to-visualize-gam-results-with-contour-tile-plot-using-ggplot2
-
-# Try using the function exclude.too.far() to prune the data a bit 
-
-drop <- exclude.too.far(ct_int_pred$temp_mean, ct_int_pred$temp_mean, bats_tot$temp_mean, bats_tot$wind_mean, dist = 0.1)
-
-df_pred <- ct_int_pred |>
-  mutate(fitted = if_else(drop, NA_real_, fitted))
-
-# Error in `mutate()`:
-# ! Problem while computing `fitted = if_else(drop, NA_real_, fitted)`.
-# Caused by error in `if_else()`:
-# ! `false` must be a double vector, not a function.
-# Run `rlang::last_error()` to see where the error occurred.
-
-------------------------------------------------------
-summary(bats_tot$temp_mean)
-  #  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-  # 8.789  13.419  14.930  15.647  17.494  24.579 
-
-summary(bats_tot$wind_mean)
-  #  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-  # 2.571   4.486   6.012   6.249   7.857  13.413 
-
-#Scetching the results - difference between Habitats
-pdata <- with(bats_tot,
-              expand.grid(temp_mean= c(8,10, 12, 14, 16, 18, 20),
-                          wind_mean = c(2, 4, 6, 8, 10, 12), 
-                          Habitat = levels(bats_tot$Habitat), 
-                          Locality = levels(bats_tot$Locality), 
-                          jnight = seq(min(jnight), max(jnight), 1))) #1 to keep the integer format
-
-summary(pdata)
-head(pdata)
-tail(pdata)
-
-fit <- data.frame(predict(m20, newdata=pdata, se.fit=TRUE, type = 'response'))
-fit <- transform(fit, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
-pred <- cbind(pdata,fit)
-
-head(pred)
-
-plt2 <- ggplot(pred, aes(x=wind_mean, y = fit)) +
-    geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5) +
-    geom_line() + facet_wrap( ~ Habitat, scales ='free_y') +
-    labs(x = "Mean wind speeds per night (m/s)", y ="Bat passes per night")
-plt2 # doesn't make much sense to have negative bat passes... 
+# library(itsadug) 
+# pvisgam(m20, view = c("wind_mean", "temp_mean")) 
+# 
+# ct_int_pred <- expand.grid(temp_mean= c(8,10, 12, 14, 16, 18, 20),
+#                           wind_mean = c(2, 4, 6, 8, 10, 12), 
+#                           Habitat = levels(bats_tot$Habitat), 
+#                           Locality = levels(bats_tot$Locality), 
+#                           jnight = seq(min(bats_tot$jnight), max(bats_tot$jnight), 1))
+#               
+# ct_int_pred <- predict(m20, newdata = ct_int_pred, 
+#                       se.fit = TRUE) %>%  
+#   as_tibble() %>% 
+#   cbind(ct_int_pred)
+# 
+# dim(ct_int_pred)
+# # 91728     7
+# 
+# ggplot(ct_int_pred, aes(x=temp_mean, y=wind_mean)) + 
+#   geom_tile(aes(fill = fit)) +
+#   geom_contour(aes(z = fit), colour = "white")
+# 
+# ct_int_pred %>%
+#   ggplot(aes(x=wind_mean, y=fit)) +
+#   geom_line(aes(colour=wind_mean))
+# 
+# ## This does not look all that great unfortunately 
+# 
+# # from this:
+# # https://stackoverflow.com/questions/73738521/how-to-visualize-gam-results-with-contour-tile-plot-using-ggplot2
+# 
+# # Try using the function exclude.too.far() to prune the data a bit 
+# 
+# drop <- exclude.too.far(ct_int_pred$temp_mean, ct_int_pred$temp_mean, bats_tot$temp_mean, bats_tot$wind_mean, dist = 0.1)
+# 
+# df_pred <- ct_int_pred |>
+#   mutate(fitted = if_else(drop, NA_real, fitted))
+# 
+# # Error in `mutate()`:
+# # ! Problem while computing `fitted = if_else(drop, NA_real_, fitted)`.
+# # Caused by error in `if_else()`:
+# # ! `false` must be a double vector, not a function.
+# # Run `rlang::last_error()` to see where the error occurred.
+# 
+# ------------------------------------------------------
+# summary(bats_tot$temp_mean)
+#   #  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#   # 8.789  13.419  14.930  15.647  17.494  24.579 
+# 
+# summary(bats_tot$wind_mean)
+#   #  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#   # 2.571   4.486   6.012   6.249   7.857  13.413 
+# 
+# #Scetching the results - difference between Habitats
+# pdata <- with(bats_tot,
+#               expand.grid(temp_mean= c(8,10, 12, 14, 16, 18, 20),
+#                           wind_mean = c(2, 4, 6, 8, 10, 12), 
+#                           Habitat = levels(bats_tot$Habitat), 
+#                           Locality = levels(bats_tot$Locality), 
+#                           jnight = seq(min(jnight), max(jnight), 1))) #1 to keep the integer format
+# 
+# summary(pdata)
+# head(pdata)
+# tail(pdata)
+# 
+# fit <- data.frame(predict(m20, newdata=pdata, se.fit=TRUE, type = 'response'))
+# fit <- transform(fit, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
+# pred <- cbind(pdata,fit)
+# 
+# head(pred)
+# 
+# plt2 <- ggplot(pred, aes(x=wind_mean, y = fit)) +
+#     geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5) +
+#     geom_line() + facet_wrap( ~ Habitat, scales ='free_y') +
+#     labs(x = "Mean wind speeds per night (m/s)", y ="Bat passes per night")
+# plt2 # doesn't make much sense to have negative bat passes... 
 
 
 # this approach for plotting predictions make a ginormous data set which is pretty much impossible to plot unfortunately. 
@@ -1703,4 +1692,229 @@ plt2 # doesn't make much sense to have negative bat passes...
 # p1
 ```
 
+--------------------------------------------------------------------------------
 
+# m21
+### Facility rather than Locality as a random effect
+### try something similar to model 20, with some slightly different smoother terms 
+### Response variable = Batpass_sum
+```{r}
+summary(bats_tot$wind_mean)
+summary(bats_tot$temp_mean)
+
+#    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#   2.571   4.486   6.012   6.249   7.857  13.413 
+# > summary(bats_tot$temp_mean)
+#    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#   8.789  13.419  14.930  15.647  17.494  24.579
+
+# Trying with some slightly different smoother terms 
+
+m21 <- gam(Batpass_sum ~
+              s(Facility, bs = "re") +                       
+              s(jnight, by = Habitat, bs = "gp") +    
+              Habitat +                                     
+              temp_mean +                                
+              s(wind_mean, bs = "cc", k = 10) +                                
+              ti(temp_mean,wind_mean, k = c(25,25), bs = "cc"),                      
+              data = bats_tot, method = "REML",                 
+              family = nb(), select=TRUE)                
+
+summary(m21) 
+
+```
+
+
+```{r}
+windows()
+par(mfrow = c(2,2))
+gam.check(m21)           #look at the plots, but also the output to check if k needs to be adjusted
+gam.check(m21, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
+
+# Now the smooth terms pass the basis dimension test! 
+
+overdispersion.m21 <- sum( residuals(m21, "pearson")^2 ) / m21$df.residual
+overdispersion.m21
+# 1.110624 - k indicies are fixed and no over / under dispersion 
+
+# From Katrine's Step3B GAM modelling script: 
+#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
+
+```
+
+
+### Basis dimension (k) checking results: 
+
+```{r}
+
+bmp(file.path(output_today, "checking k dimensions m21 bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
+windows()
+plot(m21, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
+
+draw(m21, scales ="free")         #function 'draw' is from package 'gratia'
+draw(m21, scales ="fixed")
+# wind is too wiggly, but there is no relationship for the met tower(probably too little data...) 
+dev.off() 
+windows()
+bmp(file.path(output_today, "3D gam m21 bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
+par(mfrow = c(1,2))
+vis.gam(m21, view = c("temp_mean", "wind_mean"))    
+vis.gam(m21, view = c("wind_mean", "temp_mean")) # still too wiggly though.... 
+dev.off()
+
+vis.gam(m21, view = c("temp_mean", "wind_mean"))    
+vis.gam(m21, view = c("wind_mean", "temp_mean")) 
+
+```
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+
+# Make prediction figures
+### Better visualize the wind and temperature cutoffs
+
+### May be helpful to reference later: 
+https://cran.r-project.org/web/packages/tidymv/vignettes/plot-smooths.html
+https://drmowinckels.io/blog/2019-11-16-plotting-gamm-interactions-with-ggplot2/
+https://www.imsbio.co.jp/RGM/R_rdfile?f=itsadug/man/pvisgam.Rd&d=R_CC
+
+```{r}
+
+names(bats_tot)
+# from this blog 
+# https://drmowinckels.io/blog/2019-11-16-plotting-gamm-interactions-with-ggplot2/
+
+# A few different ways to make predictions 
+
+## option 1 
+
+library(itsadug)
+pvisgam(m21, view = c("wind_mean", "temp_mean"))
+
+ct_int_pred <- expand.grid(temp_mean= c(8,10, 12, 14, 16, 18, 20),
+                          wind_mean = c(2, 4, 6, 8, 10, 12),
+                          Habitat = levels(bats_tot$Habitat),
+                          Facility = "South",
+                          jnight = seq(min(bats_tot$jnight), max(bats_tot$jnight), 1))
+
+ct_int_pred1 <- predict(m21, newdata = ct_int_pred,
+                      se.fit = TRUE) %>%
+  as_tibble() %>%
+  cbind(ct_int_pred)
+
+############################################
+
+# # option 2 
+
+fit <- predict.gam(m21, newdata = ct_int_pred, type = "response")
+ct_int_pred2 <- data.frame(ct_int_pred, fit)
+summary(ct_int_pred2)
+
+############################################
+# Plotting predicitons 
+
+ggplot(ct_int_pred1, aes(x=temp_mean, y=wind_mean)) +
+  geom_tile(aes(fill = fit)) +
+  geom_contour(aes(z = fit), colour = "white")
+
+ct_int_pred1 %>%
+  ggplot(aes(x=wind_mean, y=fit)) +
+  geom_point(aes(colour=wind_mean)) + facet_wrap(~Habitat)
+
+ct_int_pred1 %>%
+  ggplot(aes(x=temp_mean, y=fit)) +
+  geom_point(aes(colour=temp_mean)) + facet_wrap(~Habitat)
+# 
+# ## This still does not look all that great unfortunately 
+windows()
+ggplot(ct_int_pred2, aes(x=temp_mean, y=wind_mean)) +
+  geom_tile(aes(fill = fit)) +
+  geom_contour(aes(z = fit), colour = "white")
+
+ct_int_pred2 %>%
+  ggplot(aes(x=wind_mean, y=fit)) +
+  geom_point(aes(colour=wind_mean)) + facet_wrap(~Habitat)
+
+ct_int_pred2 %>%
+  ggplot(aes(x=temp_mean, y=fit)) +
+  geom_point(aes(colour=temp_mean)) + facet_wrap(~Habitat)
+
+# # from this:
+# # https://stackoverflow.com/questions/73738521/how-to-visualize-gam-results-with-contour-tile-plot-using-ggplot2
+# 
+# # Try using the function exclude.too.far() to prune the data a bit 
+# 
+# drop <- exclude.too.far(ct_int_pred$temp_mean, ct_int_pred$temp_mean, bats_tot$temp_mean, bats_tot$wind_mean, dist = 0.1)
+# 
+# df_pred <- ct_int_pred |>
+#   mutate(fitted = if_else(drop, NA_real, fitted))
+# 
+# # Error in `mutate()`:
+# # ! Problem while computing `fitted = if_else(drop, NA_real_, fitted)`.
+# # Caused by error in `if_else()`:
+# # ! `false` must be a double vector, not a function.
+# # Run `rlang::last_error()` to see where the error occurred.
+# 
+# ------------------------------------------------------
+# summary(bats_tot$temp_mean)
+#   #  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#   # 8.789  13.419  14.930  15.647  17.494  24.579 
+# 
+# summary(bats_tot$wind_mean)
+#   #  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#   # 2.571   4.486   6.012   6.249   7.857  13.413 
+# 
+# #Scetching the results - difference between Habitats
+# pdata <- with(bats_tot,
+#               expand.grid(temp_mean= c(8,10, 12, 14, 16, 18, 20),
+#                           wind_mean = c(2, 4, 6, 8, 10, 12), 
+#                           Habitat = levels(bats_tot$Habitat), 
+#                           Locality = levels(bats_tot$Locality), 
+#                           jnight = seq(min(jnight), max(jnight), 1))) #1 to keep the integer format
+# 
+# summary(pdata)
+# head(pdata)
+# tail(pdata)
+# 
+# fit <- data.frame(predict(m20, newdata=pdata, se.fit=TRUE, type = 'response'))
+# fit <- transform(fit, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
+# pred <- cbind(pdata,fit)
+# 
+# head(pred)
+# 
+# plt2 <- ggplot(pred, aes(x=wind_mean, y = fit)) +
+#     geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5) +
+#     geom_line() + facet_wrap( ~ Habitat, scales ='free_y') +
+#     labs(x = "Mean wind speeds per night (m/s)", y ="Bat passes per night")
+# plt2 # doesn't make much sense to have negative bat passes... 
+
+
+# this approach for plotting predictions make a ginormous data set which is pretty much impossible to plot unfortunately. 
+
+# m20_p <- predict_gam(m20)
+# m20_p 
+# dim(m20_p)
+# #3000000       7
+# 
+# summary(m20_p)
+# summary(m20_p$temp_mean)
+#   #  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#   # 8.789  12.656  16.684  16.684  20.712  24.579 
+# summary(m20_p$wind_mean)
+  #  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+  # 2.571   5.226   7.992   7.992  10.758  13.413 
+
+#write.csv(m20_p, file.path(output_today, "prediction model 20.csv"))
+
+# This crashes my computer unfortunately: need to create a smaller preditciton dataset probably. 
+
+# p <- m20_p %>% ggplot(aes(x = temp_mean, y = fit)) +  geom_smooth_ci(Habitat)
+# p 
+# 
+# 
+# p1 <- m20_p %>% ggplot(aes(x = wind_mean, y = fit)) +  geom_smooth_ci(Habitat)
+# p1
+```
+
+--------------------------------------------------------------------------------
