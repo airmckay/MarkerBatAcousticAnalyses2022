@@ -118,7 +118,7 @@ output <- "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/2. Mar
 dir.name <- str_c(output,"/", file.name, "_", todays_date)
  dir.name
 # 
-# dir.create(dir.name) # be careful not to recreate existing directories 
+ dir.create(dir.name) # be careful not to recreate existing directories 
 
 output_today <- dir.name
 output_today
