@@ -4,11 +4,157 @@ output: html_document
 date: "2022-12-02"
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+### Notes from meeting with Katrine 29.11.2022
+
+<!-- 1. For the total bat data set, with y = binary nightly bat activity  -->
+<!-- ------------------------------------------------------------------------------------ -->
+<!-- a. Adjust the k value for the bats_tot model to find one that better suits the data -->
+<!-- b. Illustrate the wind/temperature cutoffs.  -->
+<!-- - At some point, it may be necessary to re-aggregate the weather data to Facility rather than across both facilities -->
+------------------------------------------------------------------------------------
+
+2. For the guild / behavior specific data sets 
+------------------------------------------------------------------------------------
+a. Find appropriate k values for each model type
+b. Re run with y = bat pass count (bat pass sum, bat pass mean) rather than the binary response. 
+c. Diagnose under dispersion where it exists 
+d. Experiment with leaving out or including the interaction between wind and temperature
+e. Make figures that show the overall activity at the different sites across time (perhaps include the mean or median as an added line with CI's) 
+------------------------------------------------------------------------------------
+
+<!-- 3. For the bat / insect data -->
+<!-- ------------------------------------------------------------------------------------ -->
+<!-- a. Create continuous workflow from the bottom up and make it accessible on GitHub  -->
+<!-- b. Have a dataset and a GitHub friendly R script that Katrine can use to start working with the data by 7. Dec  -->
+------------------------------------------------------------------------------------
+
+## Generally helpful links
+https://fromthebottomoftheheap.net/2021/02/02/random-effects-in-gams/
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6542350/
+https://typeset.io/papers/ordinal-regression-models-for-zero-inflated-and-or-over-16rgcdiks5
+
+
+```{r, results = FALSE}
+
+# set project working directory according to the user system info 
+# Otherwise, all the data (inputs and outputs, including figures) can be stored on a shared OneDrive folder
+
+user <- Sys.info()['effective_user'] 
+user
+# this should print your nmbu user name - "apmc" in my case. 
+
+wd <- getwd()
+wd
+
+# "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/Documents/1. PhD_Main/GitHub_link/MarkerBatAcousticAnalyses/MarkerBatAcousticAnalyses2022"
+
+
+
+### Here is some example code from Pierre that I would like to implement soon which allows us to adjust all the directories based on the user
+
+# if(Sys.info()['user'] == 'pidu') {                                                                                                                                               ## Pierre
+#   gitDir <- 'C:/myDocuments/AlpineWolf'
+#   dataDir <- 'C:/Users/pidu/Dropbox (AQEG)/AQEG Team Folder/AlpineWolf/01_Data'  
+#   analysisDir <- 'C:/Users/pidu/Dropbox (AQEG)/AQEG Team Folder/AlpineWolf/02_Analysis'
+#   simulationDir <- 'C:/Users/pidu/Dropbox (AQEG)/AQEG Team Folder/AlpineWolf/03_Simulations'
+#   meetingDir <- 'C:/Users/pidu/Dropbox (AQEG)/AQEG Team Folder/AlpineWolf/04_Meetings'
+#   reportDir <- 'C:/Users/pidu/Dropbox (AQEG)/AQEG Team Folder/AlpineWolf/06_Report'
+# } else if(Sys.info()['user'] == 'virginia') {                                                                                                                                ## Virginia
+#   gitDir <- '/Users/virginia/Dropbox/Mac/Documents/GitHub/AlpineWolf'
+#   dataDir <- '/Users/virginia/Dropbox/AlpineWolf/01_Data'
+#   analysisDir <- '/Users/virginia/Dropbox/AlpineWolf/02_Analysis'
+#   simulationDir <- '/Users/virginia/Dropbox/AlpineWolf/03_Simulations'
+#   meetingDir <- '/Users/virginia/Dropbox/AlpineWolf/04_Meetings'
+#   reportDir <- '/Users/virginia/Dropbox/AlpineWolf/06_Report'
+# 
+
+##########################################################
+#### Work environment set up ####
+##########################################################
+library(knitr)
+library(data.table)
+library(tidyverse)
+library(beepr)
+library(lubridate)
+library(purrr)
+#renv::install("rstudio/renv")
+library(renv)
+library(stringr)
+library(janitor)
+library(anytime)
+library(kableExtra)
+library(papeR)
+library(skimr)
+library(vtable)
+library(gratia)
+library(DHARMa)
+library(mgcv)
+library(tidymv)
+
+##########################################################
+#### Import data, set up directories   ####
+##########################################################
+
+# All input data can be found on a shared OneDrive folder - we can both share the same input folder but we should have different Output folders. 
+
+# for Katrine 
+#input <- ""
+
+# for Reed 
+input <- "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/SecondDraftAnalyses/Input/forModels"
+
+dataset1 <- "guild_behavior_summarytable_site.csv" 
+# df2C for the dataset aggregated by guild and bahavior from Marker aggregated to night_all bats
+dataset2 <- "totalbatpass_summarytable_withbinary_batpass_night_aggregated_site data.csv"
+# df2C for the dataset aggregated to all batsa from Marker aggregated to night_all bats
+dataset3 <- "nightlyaggregated_zeros_binary_behavior and guild.csv"
+# dataset aggregated to guild and behavior before being table transformed 
+dataset4 <- "nightlyaggregatedMarker2020_totalbats_zeroinserted_weather_binary.csv"
+# dataset aggregated to night by total bats before table transformed 
+dataset5 <- "guild_behavior_batpass_summarytable_trimmed MRE social and met tower.csv"
+
+
+path1 <- str_c(input, "/", dataset1)
+path2 <- str_c(input, "/", dataset2)
+path3 <- str_c(input, "/", dataset3)
+path4 <- str_c(input, "/", dataset4)
+path5 <- str_c(input, "/", dataset5)
+
+bats_gb <- read_csv(path1) # 11412 obs of 20 variables 
+bats_tot <- read.csv(path2) # # 951 obs of 18 variables variables
+bats_gb_simple <- read.csv(path3) # 11412 obs of 17 vars 
+bats_tot_simple <- read.csv(path4) # 951 obs of 15 variables
+bats_gb_trim <- read.csv(path5) # 4866 obs of 20 variables 
+
+# for Reed
+output <- "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/SecondDraftAnalyses/Reed/Outputs"
+
+# for Katrine 
+#output <- ""
+
+## 
+ file.name <- "Step4.GAMS by guild behavior subset"
+# 
+ todays_date <- Sys.Date()
+# 
+dir.name <- str_c(output,"/", file.name, "_", todays_date)
+ dir.name
+# 
+# dir.create(dir.name) # be careful not to recreate existing directories 
+
+output_today <- dir.name
+output_today
+
 ```
 
+### Recommended Youtube videos on GAM to understand the R code below
+
+ https://www.youtube.com/watch?v=q4_t8jXcQgc
+ https://www.youtube.com/watch?v=sgw4cu8hrZM&t=4038s
+ 
 --------------------------------------------------------------------------------
+
+# Prepate the datasets for modeling
 Similar approach, now with 4 different data sets - 
 
 LRE feeding
@@ -20,7 +166,7 @@ Prepare new subsetted data
 Take from bats_gb_trim (already removed met tower, MRE and social passes)'
 
 ```{r}
-
+summary(bats_gb_trim)
 bats_gb_trim$Habitat <- factor(bats_gb_trim$Habitat)
 bats_gb_trim$Locality <- factor(bats_gb_trim$Locality)
 bats_gb_trim$Site <- factor(bats_gb_trim$Site)
@@ -29,16 +175,53 @@ bats_gb_trim$guild <- factor(bats_gb_trim$guild)
 bats_gb_trim$behavior <- factor(bats_gb_trim$behavior)
 bats_gb_trim$jnight <- yday(bats_gb_trim$night)
 
+# binary effects 
 bats_gb_trim$yes_batpass <- bats_gb_trim$batpass01_sum   #batpass01_sum is sum of '1' values in batpass01, i.e. number of observ. hours per night when batpass recorded
 bats_gb_trim$no_batpass <- bats_gb_trim$batpass01_length - bats_gb_trim$batpass01_sum #batpass01_length is number of observ. hours per night
 
-summary(bats_gb_trim)
+## addressing outliers for the count nightly bat pass
+dotchart(bats_gb_trim$Batpass_sum)
+hist(bats_gb_trim$Batpass_sum)
+ggplot(bats_gb_trim) + geom_histogram(aes(x = Batpass_sum)) + xlim(c(1,100)) 
+ggplot(bats_gb_trim) + geom_histogram(aes(x = Batpass_sum)) + xlim(c(1,50)) 
+ggplot(bats_gb_trim) + geom_histogram(aes(x = Batpass_sum)) + xlim(c(0,50)) 
+# Warning messages:
+# 1: Removed 76 rows containing non-finite values (`stat_bin()`). 
+# 2: Removed 2 rows containing missing values (`geom_bar()`). 
+(4866-78)/4866*100
+# lost less than 2 % of the observations by trimming data to 50 batpasses per night.
+# Will convert batpasses over 50 to 50 and create a new column for it.
 
-LREf <- bats_gb_trim %>% filter(guild == "LRE", behavior == "Feeding") %>% droplevels()
-LREc <- bats_gb_trim %>% filter(guild %in% "LRE", behavior %in% "Commuting") %>% droplevels()
+#Make a new column in the dataset
+bats_gb_trim$batpass50 <- bats_gb_trim$Batpass_sum
 
-SREf <- bats_gb_trim %>% filter(guild == "SRE", behavior == "Feeding") %>% droplevels()
-SREc <- bats_gb_trim %>% filter(guild == "SRE", behavior == "Commuting") %>% droplevels()
+# reassign batpass values over 50 to 50
+bats_gb_trim$batpass50[bats_gb_trim$Batpass_sum>50] <- 50
+
+
+```
+
+# Survey effort
+
+```{r}
+survey.effort <- bats_gb_trim %>% 
+  select(Site, night) %>% unique() 
+
+survey.nights <- count(survey.effort, Site)
+
+bats_gb_trim1 <- left_join(bats_gb_trim, survey.nights) %>% rename(survey.nights = n)
+summary(bats_gb_trim1)
+```
+
+# Make guild - behavior subsets 
+```{r}
+summary(bats_gb_trim1)
+
+LREf <- bats_gb_trim1 %>% filter(guild == "LRE", behavior == "Feeding") %>% droplevels()
+LREc <- bats_gb_trim1 %>% filter(guild %in% "LRE", behavior %in% "Commuting") %>% droplevels()
+
+SREf <- bats_gb_trim1 %>% filter(guild == "SRE", behavior == "Feeding") %>% droplevels()
+SREc <- bats_gb_trim1 %>% filter(guild == "SRE", behavior == "Commuting") %>% droplevels()
 
 summary(LREf) # 811 obs of 23 vars 
 summary(LREc) # 811 obs of 23 vars 
@@ -47,7 +230,12 @@ summary(SREf) # 811 obs of 23 vars
 summary(SREc) # 811 obs of 23 vars 
 ```
 
-# Now with LRE feeding
+
+--------------------------------------------------------------------------------
+# LRE feeding 
+--------------------------------------------------------------------------------
+
+# m1_LREf 
 
 ```{r}
 m1_LREf <- gam(cbind(yes_batpass,no_batpass) ~
@@ -61,46 +249,19 @@ m1_LREf <- gam(cbind(yes_batpass,no_batpass) ~
               family = binomial, select=TRUE)                #may have to shift to quasibinomial if overdispersion, select = TRUE gives you automatic model selection
 
 summary(m1_LREf) # 
-# Now everything is significant besdies the ti(temp_mean, wind_mean) term
-# Opposite from the last m1 model basically 
+
 ```
-________________________________________________________________________________
 
-Family: binomial 
-Link function: logit 
-
-Formula:
-cbind(yes_batpass, no_batpass) ~ s(Locality, bs = "re") + 
-    s(jnight, by = Habitat, bs = "gp", k = 90) + Habitat + 
-    s(temp_mean) + s(wind_mean) + ti(temp_mean, wind_mean)
-
-Parametric coefficients:
-                  Estimate Std. Error z value Pr(>|z|)    
-(Intercept)        -1.2595     0.3560  -3.538 0.000403 ***
-HabitatTurbinePad   0.6617     0.1992   3.321 0.000896 ***
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-Approximate significance of smooth terms:
-                                  edf Ref.df Chi.sq  p-value    
-s(Locality)                 5.5265823      6  55.65  < 2e-16 ***
-s(jnight):HabitatNatural    1.8601064     87  18.16 6.89e-05 ***
-s(jnight):HabitatTurbinePad 3.7275409     88  23.97 7.41e-05 ***
-s(temp_mean)                3.2288598      9  72.42  < 2e-16 ***
-s(wind_mean)                3.4219551      9  31.51  < 2e-16 ***
-ti(temp_mean,wind_mean)     0.0004462     16   0.00    0.475    
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-R-sq.(adj) =  0.372   Deviance explained = 33.6%
--REML = 393.62  Scale est. = 1         n = 811
-
-________________________________________________________________________________
+# Basic diagnostics 
 
 ```{r}
+windows()
 par(mfrow = c(2,2))
-gam.check(m1_LREf)           #look at the plots, but also the output to check if k needs to be adjusted
-gam.check(m1_LREf, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
+gam.check(m1_LREf, rep = 500)           
+#look at the plots, but also the output to check if k needs to be adjusted
+gam.check(m1_LREf)  
+#rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
+
 
 overdispersion.m1_LREf <- sum( residuals(m1_LREf, "pearson")^2 ) / m1_LREf$df.residual
 overdispersion.m1_LREf
@@ -111,10 +272,7 @@ overdispersion.m1_LREf
 
 ```
 
-
 # Basis dimension (k) checking results: 
-The k-index should be approx. 1 or larger
-Play play around with k....
 
 ```{r}
 
@@ -127,11 +285,92 @@ draw(m1_LREf, scales ="free")         #function 'draw' is from package 'gratia'
 draw(m1_LREf, scales ="fixed")
 
 dev.off() 
+
+## Visualize the 3D GAM
+bmp(file.path(output_today, "3D gam m1_LREf bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
+par(mfrow = c(1,2))
+
+vis.gam(m1_LREf, view = c("temp_mean", "wind_mean"))    #Not a very elegant plot, you can find prettier solutions, but helps understand the interaction between tempp and wind
+vis.gam(m1_LREf, view = c("wind_mean", "temp_mean")) 
+
+dev.off()
+```
+ Try again after adjusting the k terms on the smooths 
+ 
+--------------------------------------------------------------------------------
+
+# m2_LREf - LRE feeding 
+## Adjusting smooth terms 
+```{r}
+m2_LREf <- gam(cbind(yes_batpass,no_batpass) ~
+              s(Locality, bs = "re") +                       
+              s(jnight, by = Habitat, bs = "gp", k = 12) +    
+              Habitat +                                      
+              s(temp_mean, k = 12) +                               
+              s(wind_mean, k = 15) +                               
+              ti(temp_mean,wind_mean, k = c(20,20)) ,                      
+              data = LREf, method = "REML",                  
+              family = binomial, select=TRUE)                
+summary(m2_LREf) # 
+
+```
+
+# Basic diagnostics 
+
+```{r}
+
+par(mfrow = c(2,2))
+gam.check(m2_LREf, rep = 500)           
+#look at the plots, but also the output to check if k needs to be adjusted
+gam.check(m2_LREf)  
+#rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
+
+overdispersion.m2_LREf <- sum( residuals(m2_LREf, "pearson")^2 ) / m2_LREf$df.residual
+overdispersion.m2_LREf
+# 0.8102803 ... it is alright! 
+
+# From Katrine's Step3B GAM modelling script: 
+#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
+
+# Just barely passes 
+
+```
+
+# Basis dimension (k) checking results: 
+
+```{r}
+
+bmp(file.path(output_today, "checking k dimensions m2_LREf bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
+
+#windows()
+plot(m2_LREf, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
+
+draw(m2_LREf, scales ="free")         #function 'draw' is from package 'gratia'
+draw(m2_LREf, scales ="fixed")
+
+dev.off() 
+
+## Visualize the 3D GAM
+bmp(file.path(output_today, "3D gam m2_LREf bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
+par(mfrow = c(1,2))
+
+vis.gam(m2_LREf, view = c("temp_mean", "wind_mean"))    #Not a very elegant plot, you can find prettier solutions, but helps understand the interaction between tempp and wind
+vis.gam(m2_LREf, view = c("wind_mean", "temp_mean")) 
+
+dev.off()
+
 ```
 
 
 #Sketching the results - difference between Habitats
 ```{r}
+summary(LREf$temp_mean)
+  #  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+  # 8.789  13.419  14.930  15.610  17.494  24.579 
+summary(LREf$wind_mean)
+  #  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+  # 2.571   4.486   6.012   6.230   7.822  13.413 
+
 levels(LREf$Habitat)
 # "Natural"    "TurbinePad"
 
@@ -140,29 +379,29 @@ levels(LREf$Locality)
 # [5] "Turbine2"            "Turbine4"            "Turbine8"            "Turbine9"
 
 pdata <- with(LREf,
-              expand.grid(temp_mean=14,
-                          wind_mean = 6,
+              expand.grid(temp_mean=c(8, 10, 12, 14, 16, 18, 20),
+                          wind_mean = c(2, 4, 6, 8, 10, 12),
                           Habitat = c("Natural", "TurbinePad"),
-                          Locality = c("Turbine14"),
+                          Locality = c("Turbine9"),
                           jnight = seq(min(jnight), max(jnight), 1))) #1 to keep the integer format
 
 head(pdata)
 tail(pdata)
 
-fit <- data.frame(predict(m1_LREf, newdata=pdata, se.fit=TRUE, type = 'response'))
+fit <- data.frame(predict(m2_LREf, newdata=pdata, se.fit=TRUE, type = 'response'))
 fit <- transform(fit, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
 pred <- cbind(pdata,fit)
 
 head(pred)
 
 
-bmp(file.path(output_today, "predictions m1_LREf bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
+bmp(file.path(output_today, "predictions m2_LREf bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
 
 #windows()
 plt2 <- ggplot(pred, aes(x=jnight, y = fit, group = factor(Habitat))) +
     
-    geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5) +
-    geom_line() + facet_wrap(Locality ~ Habitat, scales ='free_y') +
+    geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'blue', alpha = 0.2) +
+    geom_point() + facet_wrap(Locality ~ Habitat, scales ='free_y') +
     labs(x = "Julian night", y ="prop of hours per night with batpass>0")
 plt2
 
@@ -171,63 +410,250 @@ dev.off()
 ```
 
 
-# Now with LRE commuting
+--------------------------------------------------------------------------------
+
+# m3_LREf - LRE feeding 
+## negbinom / count response 
+```{r}
+m3_LREf <- gam(Batpass_sum ~
+              s(Locality, bs = "re") +                       
+              s(jnight, by = Habitat, bs = "gp", k = 15) +    
+              Habitat +                                      
+              s(temp_mean, k = 10) +                               
+              s(wind_mean, k = 10) +                               
+              ti(temp_mean,wind_mean, k = c(10,10)) ,                      
+              data = LREf, method = "REML",                  
+              family = nb())                  
+
+summary(m3_LREf) # 
+
+```
+
+# Basic diagnostics 
+
+```{r}
+
+par(mfrow = c(2,2))
+gam.check(m3_LREf, rep = 500)           
+#look at the plots, but also the output to check if k needs to be adjusted
+gam.check(m3_LREf)  
+#rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
+
+
+overdispersion.m3_LREf <- sum( residuals(m3_LREf, "pearson")^2 ) / m3_LREf$df.residual
+overdispersion.m3_LREf
+
+## 
+
+
+# From Katrine's Step3B GAM modelling script: 
+#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
+
+# Just barely passes 
+
+```
+
+# Basis dimension (k) checking results: 
+
+```{r}
+
+bmp(file.path(output_today, "checking k dimensions m3_LREf bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
+
+#windows()
+plot(m3_LREf, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
+
+draw(m3_LREf, scales ="free")         #function 'draw' is from package 'gratia'
+draw(m3_LREf, scales ="fixed")
+
+dev.off() 
+
+## Visualize the 3D GAM
+bmp(file.path(output_today, "3D gam m3_LREf bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
+par(mfrow = c(1,2))
+
+vis.gam(m3_LREf, view = c("temp_mean", "wind_mean"))    #Not a very elegant plot, you can find prettier solutions, but helps understand the interaction between tempp and wind
+vis.gam(m3_LREf, view = c("wind_mean", "temp_mean")) 
+
+dev.off()
+
+```
+
+
+## Recap
+When the response variable is count data, I cannot manage to get a model that with an appropriate distribution **and** K values that fit. I will try using the bat pass 50 (nightly bat passes > 50 are 50) as a response variable to address outliers that may be driving the dispersion issues.  
+
+# m4_LREf - LRE feeding 
+## negbinom / count response 
+# Site and habitat random effects
+# Removed the interaction between Site and jnight 
+```{r}
+m4_LREf <- gam(batpass50 ~
+              s(Site, bs = "re") +
+              s(Habitat, bs = "re")  +
+              s(jnight, bs = "gp", k = 35) +
+              s(temp_mean, k = 15) +
+              s(wind_mean, k = 11) +
+              ti(temp_mean,wind_mean, k = c(15, 15)) ,
+              data = LREf, method = "REML",
+              family = nb()) 
+
+ summary(m4_LREf) # 
+
+```
+
+# Basic diagnostics 
+
+```{r}
+
+ par(mfrow = c(2,2))
+ gam.check(m4_LREf, rep = 500)
+ #look at the plots, but also the output to check if k needs to be adjusted
+ gam.check(m4_LREf)
+# #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
+#
+#
+ overdispersion.m4_LREf <- sum( residuals(m4_LREf, "pearson")^2 ) / m4_LREf$df.residual
+ overdispersion.m4_LREf
+
+
+# From Katrine's Step3B GAM modelling script:
+#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
+
+# Just barely passes
+
+```
+
+# Basis dimension (k) checking results: 
+
+```{r}
+
+# bmp(file.path(output_today, "checking k dimensions m4_LREf bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
+# 
+# #windows()
+# plot(m4_LREf, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
+# 
+# draw(m4_LREf, scales ="free")         #function 'draw' is from package 'gratia'
+# draw(m4_LREf, scales ="fixed")
+# 
+# dev.off() 
+# 
+# ## Visualize the 3D GAM
+# bmp(file.path(output_today, "3D gam m4_LREf bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
+# par(mfrow = c(1,2))
+# 
+# vis.gam(m4_LREf, view = c("temp_mean", "wind_mean"))    #Not a very elegant plot, you can find prettier solutions, but helps understand the interaction between tempp and wind
+# vis.gam(m4_LREf, view = c("wind_mean", "temp_mean")) 
+# 
+# dev.off()
+
+```
+
+Still a bit over dispersed, try with an offset for Site 
+--------------------------------------------------------------------------------
+
+# m5_LREf - LRE feeding 
+## negbinom / count response 
+# Y = batpas50
+```{r}
+m5_LREf <- gam(batpass50 ~
+              s(Site, bs = "re") +
+              s(Habitat, bs = "re")  +
+              s(jnight, bs = "gp", k = 45) +
+              s(temp_mean, k = 20) +
+              s(wind_mean, k = 20) +
+              ti(temp_mean,wind_mean, k = c(15,15)) +
+              offset(survey.nights),
+              data = LREf, method = "REML",
+              family = nb()) 
+
+ summary(m5_LREf) # 
+
+```
+
+# Basic diagnostics 
+
+```{r}
+
+par(mfrow = c(2,2))
+gam.check(m5_LREf, rep = 500)           
+#look at the plots, but also the output to check if k needs to be adjusted
+gam.check(m5_LREf)  
+#rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
+
+
+overdispersion.m5_LREf <- sum( residuals(m5_LREf, "pearson")^2 ) / m5_LREf$df.residual
+overdispersion.m5_LREf
+
+# The overdispersion is better but not gone... k values are okay
+
+
+# From Katrine's Step3B GAM modelling script: 
+#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
+
+# Just barely passes 
+
+```
+
+# Basis dimension (k) checking results: 
+
+```{r}
+
+bmp(file.path(output_today, "checking k dimensions m5_LREf bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
+
+#windows()
+plot(m5_LREf, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
+
+draw(m5_LREf, scales ="free")         #function 'draw' is from package 'gratia'
+draw(m5_LREf, scales ="fixed")
+
+dev.off() 
+
+## Visualize the 3D GAM
+bmp(file.path(output_today, "3D gam m5_LREf bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
+par(mfrow = c(1,2))
+
+vis.gam(m5_LREf, view = c("temp_mean", "wind_mean"))    #Not a very elegant plot, you can find prettier solutions, but helps understand the interaction between tempp and wind
+vis.gam(m5_LREf, view = c("wind_mean", "temp_mean")) 
+
+dev.off()
+
+```
+
+## Recap
+The over dispersion is better but not gone... k values are okay but also not great. 
+Not sure what would be the next best step to take here... 
+
+--------------------------------------------------------------------------------
+# LRE commuting 
+--------------------------------------------------------------------------------
+# m1_LREc  -  LRE commuting
 
 ```{r}
 m1_LREc <- gam(cbind(yes_batpass,no_batpass) ~
-              s(Locality, bs = "re") +                       #bs = "re" is equivalent to adding Locality as random intercept in a mixed model (GAMM) ## smoothers should be 1 - keep tweaking the k value 
-              s(jnight, by = Habitat, bs = "gp", k =90) +    
+              s(Locality, bs = "re") +                      
+              s(jnight, by = Habitat, bs = "gp") +    
               Habitat +                                      
               s(temp_mean) +                               
-              s(wind_mean) +                                 #same as for temp
-              ti(temp_mean,wind_mean) ,                      #interaction between temp and wind
-              data = LREc, method = "REML",                  #REML is not default, but is highly recommended by experts
-              family = binomial, select=TRUE)                #may have to shift to quasibinomial if overdispersion, select = TRUE gives you automatic model selection
+              s(wind_mean) +                                
+              ti(temp_mean,wind_mean) ,                     
+              data = LREc, method = "REML",                  
+              family = binomial, select=TRUE)                
 
 summary(m1_LREc) # 
-# Now everything is significant , this model explains the data slightly better than the the feeding model as well. 
+
 ```
-________________________________________________________________________________
 
-Family: binomial 
-Link function: logit 
-
-Formula:
-cbind(yes_batpass, no_batpass) ~ s(Locality, bs = "re") + 
-    s(jnight, by = Habitat, bs = "gp", k = 90) + Habitat + 
-    s(temp_mean) + s(wind_mean) + ti(temp_mean, wind_mean)
-
-Parametric coefficients:
-                  Estimate Std. Error z value Pr(>|z|)    
-(Intercept)         1.7274     0.2769   6.238 4.42e-10 ***
-HabitatTurbinePad   0.9177     0.3003   3.056  0.00224 ** 
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-Approximate significance of smooth terms:
-                               edf Ref.df Chi.sq  p-value    
-s(Locality)                 4.4688      6 15.480  0.00189 ** 
-s(jnight):HabitatNatural    1.5270     87  9.367  0.00283 ** 
-s(jnight):HabitatTurbinePad 4.1544     88 27.252 1.99e-05 *** 
-s(temp_mean)                0.9738      9 32.126  < 2e-16 ***  # could be modeled as a linear effect
-s(wind_mean)                3.7803      9 27.697  < 2e-16 ***
-ti(temp_mean,wind_mean)     5.5758     16 38.951  < 2e-16 ***
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-R-sq.(adj) =  0.435   Deviance explained = 42.6%
--REML = 292.63  Scale est. = 1         n = 811
-
-________________________________________________________________________________
 
 ```{r}
 par(mfrow = c(2,2))
 gam.check(m1_LREc)           #look at the plots, but also the output to check if k needs to be adjusted
-gam.check(m1_LREc, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
+gam.check(m1_LREc, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within*
+
+## 
 
 overdispersion.m1_LREc <- sum( residuals(m1_LREc, "pearson")^2 ) / m1_LREc$df.residual
 overdispersion.m1_LREc
-# 0.7088693 ... is this too low? Yes... 
+# 0.710618 ... under dispersed  
 
 # From Katrine's Step3B GAM modelling script: 
 #[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
@@ -243,116 +669,252 @@ Play play around with k....
 
 bmp(file.path(output_today, "checking k dimensions m1_LREc bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
 
-windows()
 plot(m1_LREc, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
 
 draw(m1_LREc, scales ="free")         #function 'draw' is from package 'gratia'
 draw(m1_LREc, scales ="fixed")
 
-#dev.off() 
+dev.off()
+
+## Visualize the 3D GAM
+bmp(file.path(output_today, "3D gam m1_LREc bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
+par(mfrow = c(1,2))
+
+vis.gam(m1_LREc, view = c("temp_mean", "wind_mean"))    #Not a very elegant plot, you can find prettier solutions, but helps understand the interaction between tempp and wind
+vis.gam(m1_LREc, view = c("wind_mean", "temp_mean")) 
+
+dev.off()
 ```
 
 
-#Sketching the results - difference between Habitats
+--------------------------------------------------------------------------------
+# m2_LREc  -  LRE commuting
+
 ```{r}
-levels(LREc$Habitat)
-# "Natural"    "TurbinePad"
+m2_LREc <- gam(cbind(yes_batpass,no_batpass) ~
+              s(Locality, bs = "re", k = 11) +                      
+              s(jnight, by = Habitat, bs = "gp", k = 10) +    
+              Habitat +                                      
+              s(temp_mean, k = 10) +                               
+              s(wind_mean, k = 13) +                                 
+              ti(temp_mean,wind_mean, k = c(15,15)) ,                      
+              data = LREc, method = "REML",                   
+              family = binomial, select=TRUE)             
 
-levels(LREc$Locality)
-# [1] "Turbine10"           "Turbine11"           "Turbine14"          
-# [5] "Turbine2"            "Turbine4"            "Turbine8"            "Turbine9"
-
-pdata <- with(LREc,
-              expand.grid(temp_mean=14,
-                          wind_mean = 6,
-                          Habitat = c("Natural", "TurbinePad"),
-                          Locality = c("Turbine14"),
-                          jnight = seq(min(jnight), max(jnight), 1))) #1 to keep the integer format
-
-head(pdata)
-tail(pdata)
-
-fit <- data.frame(predict(m1_LREc, newdata=pdata, se.fit=TRUE, type = 'response'))
-fit <- transform(fit, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
-pred <- cbind(pdata,fit)
-
-head(pred)
+summary(m2_LREc) # 
+ 
+```
 
 
-bmp(file.path(output_today, "predictions m1_LREc bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
+```{r}
+par(mfrow = c(2,2))
+gam.check(m2_LREc)           #look at the plots, but also the output to check if k needs to be adjusted
+gam.check(m2_LREc, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within*
 
-#windows()
-plt2 <- ggplot(pred, aes(x=jnight, y = fit, group = factor(Habitat))) +
-    
-    geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5) +
-    geom_line() + facet_wrap(Locality ~ Habitat, scales ='free_y') +
-    labs(x = "Julian night", y ="prop of hours per night with batpass>0")
-plt2
+## 
+
+overdispersion.m2_LREc <- sum( residuals(m2_LREc, "pearson")^2 ) / m2_LREc$df.residual
+overdispersion.m2_LREc
+
+
+# From Katrine's Step3B GAM modelling script: 
+#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
+
+```
+
+
+# Basis dimension (k) checking results: 
+The k-index should be approx. 1 or larger
+Play play around with k....
+
+```{r}
+
+bmp(file.path(output_today, "checking k dimensions m2_LREc bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
+
+plot(m2_LREc, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
+
+draw(m2_LREc, scales ="free")         #function 'draw' is from package 'gratia'
+draw(m2_LREc, scales ="fixed")
 
 dev.off()
 
+## Visualize the 3D GAM
+bmp(file.path(output_today, "3D gam m2_LREc bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
+par(mfrow = c(1,2))
+
+vis.gam(m2_LREc, view = c("temp_mean", "wind_mean"))    # Both are super duper wiggly 
+vis.gam(m2_LREc, view = c("wind_mean", "temp_mean")) 
+
+dev.off()
 ```
 
-# Now with SRE feeding 
+
+Not so sure that a binary model is the best fit in this case. But can I be switching back and forth between count/negative binomial models and binomial models? I imagine that will make the results section a bit difficult to follow and especially challenging to compare results across guild/behavior interactions.... 
+
+### Recap
+
+### Should try all these models with count/negbinom since this may be the least bad, one size fits most solution... 
+
+--------------------------------------------------------------------------------
+# m3_LREc  -  LRE commuting 
+## Negbinom, y = Batpass_sum
 
 ```{r}
-m1_SREf <- gam(cbind(yes_batpass,no_batpass) ~
-              s(Locality, bs = "re") +                       #bs = "re" is equivalent to adding Locality as random intercept in a mixed model (GAMM)
-              s(jnight, by = Habitat, bs = "gp", k =90) +    
+m3_LREc <- gam(Batpass_sum ~
+              s(Locality, bs = "re") +                      
+              s(jnight, by = Habitat, bs = "gp") +    
               Habitat +                                      
               s(temp_mean) +                               
-              s(wind_mean) +                                 #same as for temp
-              ti(temp_mean,wind_mean) ,                      #interaction between temp and wind
-              data = SREf, method = "REML",                  #REML is not default, but is highly recommended by experts
-              family = binomial, select=TRUE)                #may have to shift to quasibinomial if overdispersion, select = TRUE gives you automatic model selection
+              s(wind_mean) +                                 
+              ti(temp_mean,wind_mean) ,                      
+              data = LREc, method = "REML",                   
+              family = nb(), select=TRUE)             
 
-summary(m1_SREf) # 
-# The interaction between habitat and night is weak, as is the combined effect of wind and tempearature. Wind is still having a weird positive effect... 
+summary(m3_LREc) # 
+ 
+```
+
+
+```{r}
+par(mfrow = c(2,2))
+gam.check(m3_LREc)           #look at the plots, but also the output to check if k needs to be adjusted
+gam.check(m3_LREc, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within*
+
+## 
+
+overdispersion.m3_LREc <- sum( residuals(m3_LREc, "pearson")^2 ) / m3_LREc$df.residual
+overdispersion.m3_LREc
+
+
+# From Katrine's Step3B GAM modelling script: 
+#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
 
 ```
-________________________________________________________________________________
 
-Family: binomial 
-Link function: logit 
 
-Formula:
-cbind(yes_batpass, no_batpass) ~ s(Locality, bs = "re") + 
-    s(jnight, by = Habitat, bs = "gp", k = 90) + Habitat + 
-    s(temp_mean) + s(wind_mean) + ti(temp_mean, wind_mean)
+# Basis dimension (k) checking results: 
+The k-index should be approx. 1 or larger
+Play play around with k....
 
-Parametric coefficients:
-                  Estimate Std. Error z value Pr(>|z|)    
-(Intercept)        -2.1860     0.3842  -5.690 1.27e-08 ***
-HabitatTurbinePad  -1.0164     0.2370  -4.289 1.80e-05 ***
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+```{r}
 
-Approximate significance of smooth terms:
-                                  edf Ref.df Chi.sq p-value    
-s(Locality)                 5.224e+00      6 47.884 < 2e-16 ***
-s(jnight):HabitatNatural    1.170e-04     87  0.000 0.99307    
-s(jnight):HabitatTurbinePad 8.904e-05     87  0.000 0.83201    
-s(temp_mean)                9.683e-01      9 34.763 < 2e-16 ***
-s(wind_mean)                2.947e+00      9 12.172 0.00187 ** 
-ti(temp_mean,wind_mean)     1.865e+00     16  4.475 0.05490 .  
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+bmp(file.path(output_today, "checking k dimensions m3_LREc bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
 
-R-sq.(adj) =  0.309   Deviance explained = 33.7%
--REML = 257.62  Scale est. = 1         n = 811
+plot(m3_LREc, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
 
-________________________________________________________________________________
+draw(m3_LREc, scales ="free")         #function 'draw' is from package 'gratia'
+draw(m3_LREc, scales ="fixed")
+
+dev.off()
+
+## Visualize the 3D GAM
+bmp(file.path(output_today, "3D gam m3_LREc bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
+par(mfrow = c(1,2))
+
+vis.gam(m3_LREc, view = c("temp_mean", "wind_mean"))    # Both are super duper wiggly 
+vis.gam(m3_LREc, view = c("wind_mean", "temp_mean")) 
+
+dev.off()
+```
+
+
+
+
+--------------------------------------------------------------------------------
+# m4_LREc  -  LRE commuting 
+## Negbinom, y = Batpass_sum
+## Adjusted k values 
+
+```{r}
+m4_LREc <- gam(Batpass_sum ~
+              s(Locality, bs = "re") +                      
+              s(jnight, by = Habitat, bs = "gp", k = 13) +    
+              Habitat +                                      
+              s(temp_mean, k = 13) +                               
+              s(wind_mean, k = 11) +                                 
+              ti(temp_mean,wind_mean, k = c(20, 20)),                      
+              data = LREc, method = "REML",                   
+              family = nb())             
+
+summary(m4_LREc) # 
+ 
+```
+
+
+```{r}
+par(mfrow = c(2,2))
+gam.check(m4_LREc)           #look at the plots, but also the output to check if k needs to be adjusted
+gam.check(m4_LREc, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within*
+
+## 
+
+overdispersion.m4_LREc <- sum( residuals(m4_LREc, "pearson")^2 ) / m4_LREc$df.residual
+overdispersion.m4_LREc
+
+
+# From Katrine's Step3B GAM modelling script: 
+#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
+
+```
+
+
+# Basis dimension (k) checking results: 
+The k-index should be approx. 1 or larger
+Play play around with k....
+
+```{r}
+
+bmp(file.path(output_today, "checking k dimensions m4_LREc bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
+
+plot(m4_LREc, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
+
+draw(m4_LREc, scales ="free")         #function 'draw' is from package 'gratia'
+draw(m4_LREc, scales ="fixed")
+
+dev.off() 
+
+## Visualize the 3D GAM
+bmp(file.path(output_today, "3D gam m4_LREc bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
+par(mfrow = c(1,2))
+
+vis.gam(m4_LREc, view = c("temp_mean", "wind_mean"))    # Both are super duper wiggly 
+vis.gam(m4_LREc, view = c("wind_mean", "temp_mean")) 
+
+dev.off()
+```
+
+--------------------------------------------------------------------------------
+# SRE feeding
+--------------------------------------------------------------------------------
+
+# mr1_SREF
+```{r}
+
+m1_SREf <- gam(cbind(yes_batpass,no_batpass) ~
+              s(Locality, bs = "re") +                       
+              s(jnight, by = Habitat, bs = "gp", k =90) +
+              Habitat +
+              s(temp_mean) +
+              s(wind_mean) +                                 
+              ti(temp_mean,wind_mean) ,                     
+              data = SREf, method = "REML",                  
+              family = binomial, select=TRUE)                
+
+summary(m1_SREf) #
+
+```
+
 
 ```{r}
 par(mfrow = c(2,2))
 gam.check(m1_SREf)           #look at the plots, but also the output to check if k needs to be adjusted
-gam.check(m1_SREf, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
+gam.check(m1_SREf, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within*
+
+## 
 
 overdispersion.m1_SREf <- sum( residuals(m1_SREf, "pearson")^2 ) / m1_SREf$df.residual
 overdispersion.m1_SREf
-# 0.7270936 ... is this too low? # Yes, underdispersed, p values are a bit too high 
-# The significant differences found are likely stronger than they seem 
-# One solution may be to try a beta-distribution? googling 
+
 
 # From Katrine's Step3B GAM modelling script: 
 #[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
@@ -368,139 +930,193 @@ Play play around with k....
 
 bmp(file.path(output_today, "checking k dimensions m1_SREf bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
 
-#windows()
 plot(m1_SREf, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
 
 draw(m1_SREf, scales ="free")         #function 'draw' is from package 'gratia'
 draw(m1_SREf, scales ="fixed")
 
+dev.off() 
+
+## Visualize the 3D GAM
+bmp(file.path(output_today, "3D gam m1_SREf bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
 par(mfrow = c(1,2))
-vis.gam(m1_SREf, view = c("temp_mean", "wind_mean"))    #Not a very elegant plot, you can find prettier solutions, but helps understand the interaction between tempp and wind
+
+vis.gam(m1_SREf, view = c("temp_mean", "wind_mean"))    # Both are super duper wiggly 
 vis.gam(m1_SREf, view = c("wind_mean", "temp_mean")) 
 
-dev.off() 
+dev.off()
+```
+
+## Recap
+
+K values look good but now we have underdispersion issues, now I am going to try and make Site the main location variable and also make Habitat and random effect. 
+
+#### Could work on making predictions with this perhaps... 
+
+--------------------------------------------------------------------------------
+
+# mr2_SREf
+
+```{r}
+
+m2_SREf <- gam(batpass50 ~
+              s(Site, bs = "re") + 
+              Habitat + 
+              s(jnight, by = Habitat, bs = "gp") +
+              s(temp_mean) +
+              s(wind_mean) +                                 
+              ti(temp_mean,wind_mean) ,                     
+              data = SREf, method = "REML",                  
+              family = nb(), select=TRUE)                
+
+summary(m2_SREf) #
+
 ```
 
 
-#Sketching the results - difference between Habitats
 ```{r}
-levels(SREf$Habitat)
-# "Natural"    "TurbinePad"
+par(mfrow = c(2,2))
+gam.check(m2_SREf)           #look at the plots, but also the output to check if k needs to be adjusted
+gam.check(m2_SREf, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within*
 
-levels(SREf$Locality)
-# [1] "Turbine10"           "Turbine11"           "Turbine14"          
-# [5] "Turbine2"            "Turbine4"            "Turbine8"            "Turbine9"
+## 
 
-# pdata <- with(SREf,
-#               expand.grid(temp_mean=14,
-#                           wind_mean = 6,
-#                           Habitat = c("Natural", "TurbinePad"),
-#                           Locality = c("Turbine14"),
-#                           jnight = seq(min(jnight), max(jnight), 1))) #1 to keep the integer format
-# 
-# head(pdata)
-# tail(pdata)
-
-pdata <- with(SREf,
-              expand.grid(temp_mean=14,
-                          wind_mean = 6,
-                          Habitat = c("Natural", "TurbinePad"),
-                          Locality = c("Turbine14"),
-                          jnight = seq(min(jnight), max(jnight), 1))) #1 to keep the integer format
-
-head(pdata)
-tail(pdata)
-
-fit <- data.frame(predict(m1_SREf, newdata=pdata, se.fit=TRUE, type = 'response'))
-fit <- transform(fit, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
-pred <- cbind(pdata,fit)
-
-head(pred)
+overdispersion.m2_SREf <- sum( residuals(m2_SREf, "pearson")^2 ) / m2_SREf$df.residual
+overdispersion.m2_SREf
 
 
-#bmp(file.path(output_today, "predictions m1_SREf bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
+# From Katrine's Step3B GAM modelling script: 
+#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
 
+```
+
+
+# Basis dimension (k) checking results: 
+The k-index should be approx. 1 or larger
+Play play around with k....
+
+```{r}
+
+bmp(file.path(output_today, "checking k dimensions m2_SREf bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
 windows()
-plt2 <- ggplot(pred, aes(x=jnight, y = fit, group = factor(Habitat))) +
-    
-    geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5) +
-    geom_line() + facet_wrap(Locality ~ Habitat, scales ='free_y') +
-    labs(x = "Julian night", y ="prop of hours per night with batpass>0")
-plt2
+plot(m2_SREf, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
+
+draw(m2_SREf, scales ="free")         #function 'draw' is from package 'gratia'
+draw(m2_SREf, scales ="fixed")
 
 dev.off()
 
+## Visualize the 3D GAM
+bmp(file.path(output_today, "3D gam m2_SREf bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
+par(mfrow = c(1,2))
 
+vis.gam(m2_SREf, view = c("temp_mean", "wind_mean"))    # Both are super duper wiggly 
+vis.gam(m2_SREf, view = c("wind_mean", "temp_mean")) 
 
-
-
+dev.off()
 ```
 
-## Make predictions per Facility rather than Locality
-## Make a new model that makes this possible. 
-## Could use the function gam_predict() 
+## Recap
 
+K values fit but it is underdispersed and the partial effect plot for jnight and habitat shows no relationship... 
 
-
-
-# Now with SRE commuting
+--------------------------------------------------------------------------------
+# mr2_SREf
+Try modeling jnight alone instead of as an interaction with habitat 
 
 ```{r}
-m1_SREc <- gam(cbind(yes_batpass,no_batpass) ~
-              s(Locality, bs = "re") +                       #bs = "re" is equivalent to adding Locality as random intercept in a mixed model (GAMM)
-              s(jnight, by = Habitat, bs = "gp", k =90) +    
-              Habitat +                                      
-              s(temp_mean) +                               
-              s(wind_mean) +                                 #same as for temp
-              ti(temp_mean,wind_mean) ,                      #interaction between temp and wind
-              data = SREc, method = "REML",                  #REML is not default, but is highly recommended by experts
-              family = binomial, select=TRUE)                #may have to shift to quasibinomial if overdispersion, select = TRUE gives you automatic model selection
 
-summary(m1_SREc) # 
-# 
+m3_SREf <- gam(batpass50 ~
+              s(Site, bs = "re") + 
+              Habitat + 
+              s(jnight, bs = "gp") +
+              s(temp_mean) +
+              s(wind_mean) +                                 
+              ti(temp_mean,wind_mean) ,                     
+              data = SREf, method = "REML",                  
+              family = nb(), select=TRUE)                
+
+summary(m3_SREf) #
+
 ```
-________________________________________________________________________________
 
 
-Family: binomial 
-Link function: logit 
+```{r}
+par(mfrow = c(2,2))
+gam.check(m3_SREf)           #look at the plots, but also the output to check if k needs to be adjusted
+gam.check(m3_SREf, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within*
 
-Formula:
-cbind(yes_batpass, no_batpass) ~ s(Locality, bs = "re") + 
-    s(jnight, by = Habitat, bs = "gp", k = 90) + Habitat + 
-    s(temp_mean) + s(wind_mean) + ti(temp_mean, wind_mean)
 
-Parametric coefficients:
-                  Estimate Std. Error z value Pr(>|z|)    
-(Intercept)        1.37150    0.27630   4.964 6.91e-07 ***
-HabitatTurbinePad  0.06346    0.19587   0.324    0.746    
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+overdispersion.m3_SREf <- sum( residuals(m3_SREf, "pearson")^2 ) / m3_SREf$df.residual
+overdispersion.m3_SREf
 
-Approximate significance of smooth terms:
-                              edf Ref.df Chi.sq  p-value    
-s(Locality)                 4.540      6 17.203 0.000811 ***
-s(jnight):HabitatNatural    2.381     87 24.589 3.43e-06 ***
-s(jnight):HabitatTurbinePad 3.608     88 43.538  < 2e-16 ***
-s(temp_mean)                4.845      9 24.045 1.07e-05 ***
-s(wind_mean)                3.045      9 44.741  < 2e-16 ***
-ti(temp_mean,wind_mean)     1.239     16  2.866 0.052734 .  
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-R-sq.(adj) =  0.296   Deviance explained = 28.7%
--REML = 395.62  Scale est. = 1         n = 811
+# From Katrine's Step3B GAM modelling script: 
+#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
 
-________________________________________________________________________________
+```
+
+
+# Basis dimension (k) checking results: 
+The k-index should be approx. 1 or larger
+Play play around with k....
+
+```{r}
+
+bmp(file.path(output_today, "checking k dimensions m3_SREf bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
+
+plot(m3_SREf, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
+
+draw(m3_SREf, scales ="free")         #function 'draw' is from package 'gratia'
+draw(m3_SREf, scales ="fixed")
+
+dev.off()
+
+## Visualize the 3D GAM
+bmp(file.path(output_today, "3D gam m3_SREf bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
+par(mfrow = c(1,2))
+
+vis.gam(m3_SREf, view = c("temp_mean", "wind_mean"))    # Both are super duper wiggly 
+vis.gam(m3_SREf, view = c("wind_mean", "temp_mean")) 
+
+dev.off()
+```
+
+## Recap
+Still have the same issues with under dispersion but now there is proper trend associated with jnight 
+
+#### Could sketch some predictions here... 
+
+--------------------------------------------------------------------------------
+# SRE commuting 
+--------------------------------------------------------------------------------
+
+# mr1_SREc
+```{r}
+
+m1_SREc <- gam(cbind(yes_batpass,no_batpass) ~
+              s(Locality, bs = "re") +                       
+              s(jnight, by = Habitat, bs = "gp", k =90) +
+              Habitat +
+              s(temp_mean) +
+              s(wind_mean) +                                 
+              ti(temp_mean,wind_mean) ,                     
+              data = SREc, method = "REML",                  
+              family = binomial, select=TRUE)                
+
+summary(m1_SREc) #
+
+```
+
 
 ```{r}
 par(mfrow = c(2,2))
 gam.check(m1_SREc)           #look at the plots, but also the output to check if k needs to be adjusted
-gam.check(m1_SREc, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
+gam.check(m1_SREc, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within*
 
 overdispersion.m1_SREc <- sum( residuals(m1_SREc, "pearson")^2 ) / m1_SREc$df.residual
 overdispersion.m1_SREc
-# 0.811134 ... good! 
+
 
 # From Katrine's Step3B GAM modelling script: 
 #[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
@@ -516,75 +1132,278 @@ Play play around with k....
 
 bmp(file.path(output_today, "checking k dimensions m1_SREc bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
 
-#windows()
 plot(m1_SREc, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
 
 draw(m1_SREc, scales ="free")         #function 'draw' is from package 'gratia'
 draw(m1_SREc, scales ="fixed")
 
-dev.off() 
-```
+dev.off()
 
+## Visualize the 3D GAM
+bmp(file.path(output_today, "3D gam m1_SREc bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
+par(mfrow = c(1,2))
 
-#Sketching the results - difference between Habitats
-```{r}
-levels(SREc$Habitat)
-# "Natural"    "TurbinePad"
-
-levels(SREc$Locality)
-# [1] "Turbine10"           "Turbine11"           "Turbine14"          
-# [5] "Turbine2"            "Turbine4"            "Turbine8"            "Turbine9"
-
-pdata <- with(SREc,
-              expand.grid(temp_mean=14,
-                          wind_mean = 6,
-                          Habitat = c("Natural", "TurbinePad"),
-                          Locality = c("Turbine14"),
-                          jnight = seq(min(jnight), max(jnight), 1))) #1 to keep the integer format
-
-head(pdata)
-tail(pdata)
-
-fit <- data.frame(predict(m1_SREc, newdata=pdata, se.fit=TRUE, type = 'response'))
-fit <- transform(fit, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
-pred <- cbind(pdata,fit)
-
-head(pred)
-
-
-bmp(file.path(output_today, "predictions m1_SREc bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
-
-#windows()
-plt2 <- ggplot(pred, aes(x=jnight, y = fit, group = factor(Habitat))) +
-    
-    geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5) +
-    geom_line() + facet_wrap(Locality ~ Habitat, scales ='free_y') +
-    labs(x = "Julian night", y ="prop of hours per night with batpass>0")
-plt2
+vis.gam(m1_SREc, view = c("temp_mean", "wind_mean"))    # Both are super duper wiggly 
+vis.gam(m1_SREc, view = c("wind_mean", "temp_mean")) 
 
 dev.off()
 ```
 
-### Notes from meeting with Katrine 29.11.2022
+## Recap
+All the k values need adjusting 
 
-1. For the total bat data set, with y = binary nightly bat activity 
-------------------------------------------------------------------------------------
-a. Adjust the k value for the bats_tot model to find one that better suits the data
-b. Illustrate the wind/temperature cutoffs. 
-- At some point, it may be necessary to re-aggregate the weather data to Facility rather than across both facilities
-------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+# mr1_SREc
+```{r}
 
-2. For the guild / behavior specific data sets 
-------------------------------------------------------------------------------------
-a. Find appropriate k values for each model type
-b. Re run with y = bat pass count (bat pass sum, bat pass mean) rather than the binary response. 
-c. Diagnose under dispersion where it exists 
-d. Experiment with leaving out or including the interaction between wind and temperature
-e. Make figures that show the overall activity at the different sites across time (perhaps include the mean or median as an added line with CI's) 
-------------------------------------------------------------------------------------
+m1_SREc <- gam(cbind(yes_batpass,no_batpass) ~
+              s(Locality, bs = "re") +                       
+              s(jnight, by = Habitat, bs = "gp", k = 40) +
+              Habitat +
+              s(temp_mean, k = 15) +
+              s(wind_mean,k = 15) +                                 
+              ti(temp_mean,wind_mean, k = c(15,15))  ,                     
+              data = SREc, method = "REML",                  
+              family = binomial, select=TRUE)                
 
-3. For the bat / insect data
-------------------------------------------------------------------------------------
-a. Create continuous workflow from the bottom up and make it accessible on GitHub 
-b. Have a dataset and a GitHub friendly R script that Katrine can use to start working with the data by 7. Dec 
-------------------------------------------------------------------------------------
+summary(m1_SREc) #
+
+```
+
+
+```{r}
+par(mfrow = c(2,2))
+gam.check(m1_SREc)           #look at the plots, but also the output to check if k needs to be adjusted
+gam.check(m1_SREc, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within*
+
+overdispersion.m1_SREc <- sum( residuals(m1_SREc, "pearson")^2 ) / m1_SREc$df.residual
+overdispersion.m1_SREc
+
+
+# From Katrine's Step3B GAM modelling script: 
+#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
+
+```
+
+
+# Basis dimension (k) checking results: 
+The k-index should be approx. 1 or larger
+Play play around with k....
+
+```{r}
+
+bmp(file.path(output_today, "checking k dimensions m1_SREc bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
+
+plot(m1_SREc, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
+
+draw(m1_SREc, scales ="free")         #function 'draw' is from package 'gratia'
+draw(m1_SREc, scales ="fixed")
+
+dev.off()
+
+## Visualize the 3D GAM
+bmp(file.path(output_today, "3D gam m1_SREc bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
+par(mfrow = c(1,2))
+
+vis.gam(m1_SREc, view = c("temp_mean", "wind_mean"))    # Both are super duper wiggly 
+vis.gam(m1_SREc, view = c("wind_mean", "temp_mean")) 
+
+dev.off()
+```
+
+## Recap
+
+K values are fixed but now it is super underdispersed... 
+
+# SRE commuting 
+--------------------------------------------------------------------------------
+
+# mr1_SREc
+```{r}
+
+m1_SREc <- gam(cbind(yes_batpass,no_batpass) ~
+              s(Locality, bs = "re") +                       
+              s(jnight, by = Habitat, bs = "gp", k =90) +
+              Habitat +
+              s(temp_mean) +
+              s(wind_mean) +                                 
+              ti(temp_mean,wind_mean) ,                     
+              data = SREc, method = "REML",                  
+              family = binomial, select=TRUE)                
+
+summary(m1_SREc) #
+
+```
+
+
+```{r}
+par(mfrow = c(2,2))
+gam.check(m1_SREc)           #look at the plots, but also the output to check if k needs to be adjusted
+gam.check(m1_SREc, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within*
+
+overdispersion.m1_SREc <- sum( residuals(m1_SREc, "pearson")^2 ) / m1_SREc$df.residual
+overdispersion.m1_SREc
+
+
+# From Katrine's Step3B GAM modelling script: 
+#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
+
+```
+
+
+# Basis dimension (k) checking results: 
+The k-index should be approx. 1 or larger
+Play play around with k....
+
+```{r}
+
+bmp(file.path(output_today, "checking k dimensions m1_SREc bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
+
+plot(m1_SREc, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
+
+draw(m1_SREc, scales ="free")         #function 'draw' is from package 'gratia'
+draw(m1_SREc, scales ="fixed")
+
+dev.off()
+
+## Visualize the 3D GAM
+bmp(file.path(output_today, "3D gam m1_SREc bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
+par(mfrow = c(1,2))
+
+vis.gam(m1_SREc, view = c("temp_mean", "wind_mean"))    # Both are super duper wiggly 
+vis.gam(m1_SREc, view = c("wind_mean", "temp_mean")) 
+
+dev.off()
+```
+
+## Recap
+All the k values need adjusting 
+
+--------------------------------------------------------------------------------
+# mr2_SREc
+Try Habitat as a random effect 
+```{r}
+
+m2_SREc <- gam(cbind(yes_batpass,no_batpass) ~
+              s(Locality, bs = "re") + 
+              s(Habitat, bs = "re") +
+              s(jnight, by = Habitat, bs = "gp", k = 45) +
+              s(temp_mean, k = 15) +
+              s(wind_mean, k = 15) +                                 
+              ti(temp_mean,wind_mean)  ,                     
+              data = SREc, method = "REML",                  
+              family = binomial, select=TRUE)                
+
+summary(m2_SREc) #
+
+```
+
+
+```{r}
+par(mfrow = c(2,2))
+gam.check(m2_SREc)           #look at the plots, but also the output to check if k needs to be adjusted
+gam.check(m2_SREc, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within*
+
+overdispersion.m2_SREc <- sum( residuals(m2_SREc, "pearson")^2 ) / m2_SREc$df.residual
+overdispersion.m2_SREc
+
+
+# From Katrine's Step3B GAM modelling script: 
+#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
+
+```
+
+
+# Basis dimension (k) checking results: 
+The k-index should be approx. 1 or larger
+Play play around with k....
+
+```{r}
+
+bmp(file.path(output_today, "checking k dimensions m2_SREc bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
+
+plot(m2_SREc, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
+
+draw(m2_SREc, scales ="free")         #function 'draw' is from package 'gratia'
+draw(m2_SREc, scales ="fixed")
+
+dev.off()
+
+## Visualize the 3D GAM
+bmp(file.path(output_today, "3D gam m2_SREc bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
+par(mfrow = c(1,2))
+
+vis.gam(m2_SREc, view = c("temp_mean", "wind_mean"))    # Both are super duper wiggly 
+vis.gam(m2_SREc, view = c("wind_mean", "temp_mean")) 
+
+dev.off()
+```
+
+## Recap
+
+k values look good but now it is underdispered... 
+
+
+--------------------------------------------------------------------------------
+# mr2_SREc
+Try Habitat as a random effect 
+```{r}
+
+m3_SREc <- gam(batpass50 ~
+              s(Locality, bs = "re") + 
+              s(Habitat, bs = "re") +
+              s(jnight, bs = "gp", k = 90) +
+              s(temp_mean, k = 15) +
+              s(wind_mean, k = 15) +                                 
+              ti(temp_mean,wind_mean, k = c(15, 15)),                     
+              data = SREc, method = "REML",                  
+              family = nb(), select=TRUE)                
+
+summary(m3_SREc) #
+
+```
+
+
+```{r}
+par(mfrow = c(2,2))
+gam.check(m3_SREc)           #look at the plots, but also the output to check if k needs to be adjusted
+gam.check(m3_SREc, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within*
+
+overdispersion.m3_SREc <- sum( residuals(m3_SREc, "pearson")^2 ) / m3_SREc$df.residual
+overdispersion.m3_SREc
+
+
+# From Katrine's Step3B GAM modelling script: 
+
+
+```
+
+
+# Basis dimension (k) checking results: 
+The k-index should be approx. 1 or larger
+Play play around with k....
+
+```{r}
+
+bmp(file.path(output_today, "checking k dimensions m3_SREc bats_tot.jpeg"), width = 9, height = 6, units = "in", res = 350)
+
+plot(m3_SREc, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
+
+draw(m3_SREc, scales ="free")         #function 'draw' is from package 'gratia'
+draw(m3_SREc, scales ="fixed")
+
+dev.off()
+
+## Visualize the 3D GAM
+bmp(file.path(output_today, "3D gam m3_SREc bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
+par(mfrow = c(1,2))
+
+vis.gam(m3_SREc, view = c("temp_mean", "wind_mean"))    # Both are super duper wiggly 
+vis.gam(m3_SREc, view = c("wind_mean", "temp_mean")) 
+
+dev.off()
+```
+
+## Recap
+
+Got to a good place with the k values and dispersion! This may be worth plotting some predictions with. 
