@@ -1132,14 +1132,14 @@ Using facility rather than locality as a random effect did not seem to make much
 
 # m15
 ### s(Facility, bs = "re") rather than Locality 
+### Removed the temp * wind interaction 
 ```{r}
 m15 <- gam(cbind(yes_batpass,no_batpass) ~
               s(Facility, bs = "re") +                       
               s(jnight, by = Habitat, bs = "gp") +    
               Habitat +                                     
               temp_mean +                                
-              s(wind_mean) +                                
-              ti(temp_mean,wind_mean, k = c(20,20)) ,                      
+              s(wind_mean), 
               data = bats_tot, method = "REML",                 
               family = binomial, select=TRUE)                
 
@@ -1158,7 +1158,7 @@ gam.check(m15, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the 
 
 overdispersion.m15 <- sum( residuals(m15, "pearson")^2 ) / m15$df.residual
 overdispersion.m15
-# 0.574884 - under dispersion is there and the k values are still not good
+# 0.8202846 - dispersion is fine and the k values could just be adjusted slightly 
 
 # From Katrine's Step3B GAM modelling script: 
 #[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
@@ -1190,8 +1190,72 @@ vis.gam(m15, view = c("wind_mean", "temp_mean"))
 
 ```
 
-I am not sure what else to do at this point other than use a different response variable. 
-# try batpass_prop
+## Recap
+Removing the wind / temp interaction definitely helps 
+I am going to try and tweak the k values a little then make some predictions 
+--------------------------------------------------------------------------------
+
+# m15.5
+### s(Facility, bs = "re") rather than Locality 
+### Removed the temp * wind interaction 
+```{r}
+m15.5 <- gam(cbind(yes_batpass,no_batpass) ~
+              s(Facility, bs = "re") +                       
+              s(jnight, by = Habitat, bs = "gp", k = 15) +    
+              Habitat +                                     
+              temp_mean +                                
+              s(wind_mean, k = 15), 
+              data = bats_tot, method = "REML",                 
+              family = binomial, select=TRUE)                
+
+summary(m15.5) 
+
+```
+
+
+```{r}
+
+par(mfrow = c(2,2))
+gam.check(m15.5)           #look at the plots, but also the output to check if k needs to be adjusted
+gam.check(m15.5, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
+
+# Now the smooth terms pass the basis dimension test! 
+
+overdispersion.m15.5 <- sum( residuals(m15.5, "pearson")^2 ) / m15.5$df.residual
+overdispersion.m15.5
+# 0.7991694 - slightly under dispersed and the k values look good! 
+
+# From Katrine's Step3B GAM modelling script: 
+#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
+
+```
+
+
+### Basis dimension (k) checking results: 
+
+```{r}
+
+bmp(file.path(output_today, "checking k dimensions m15.5 bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
+
+plot(m15.5, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
+
+draw(m15.5, scales ="free")         #function 'draw' is from package 'gratia'
+draw(m15.5, scales ="fixed")
+# wind is too wiggly, but there is no relationship for the met tower(probably too little data...) 
+dev.off() 
+
+bmp(file.path(output_today, "3D gam m15.5 bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
+par(mfrow = c(1,2))
+vis.gam(m15.5, view = c("temp_mean", "wind_mean"))    
+vis.gam(m15.5, view = c("wind_mean", "temp_mean")) 
+dev.off()
+
+vis.gam(m15.5, view = c("temp_mean", "wind_mean"))    
+vis.gam(m15.5, view = c("wind_mean", "temp_mean")) 
+
+```
+
+
 
 --------------------------------------------------------------------------------
 
