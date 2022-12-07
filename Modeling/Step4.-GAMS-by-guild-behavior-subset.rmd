@@ -1187,7 +1187,6 @@ summary(m3_SREf) #
 
 
 ```{r}
-windows()
 par(mfrow = c(2,2))
 gam.check(m3_SREf)           #look at the plots, but also the output to check if k needs to be adjusted
 gam.check(m3_SREf, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within*
@@ -1257,10 +1256,10 @@ names(SREf)
 ## option 1 
 
 
-ct_int_pred <- expand.grid(temp_mean= 16,
-                          wind_mean = 5,
+ct_int_pred <- expand.grid(temp_mean= c(8,10, 12, 14, 16, 18, 20),
+                          wind_mean = c(2, 4, 6, 8, 10, 12),
                           Habitat = levels(SREf$Habitat),
-                          Locality = "Turbine11",
+                          Locality = "Turbine9",
                           jnight = seq(min(SREf$jnight), max(SREf$jnight), 1))
 
 ct_int_pred1 <- predict(m3_SREf, newdata = ct_int_pred,
@@ -1305,22 +1304,6 @@ ct_int_pred2 %>%
   ggplot(aes(x=temp_mean, y=fit)) +
   geom_point(aes(colour=temp_mean)) + facet_wrap(~Habitat)
 
-
-
-
-ct_int_pred2 %>%
-  ggplot(aes(x=jnight, y=fit)) +
-  geom_line() + facet_wrap(~Habitat)
-
-sum(SREf$Batpass_sum)
-sum(SREc$Batpass_sum)
-
-
-sum(LREf$Batpass_sum)
-sum(LREc$Batpass_sum)
-
-339/3776
-3703/10584
 ```
 
 --------------------------------------------------------------------------------

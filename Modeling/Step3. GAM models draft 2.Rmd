@@ -155,6 +155,8 @@ plot(bats_tot$temp_max, bats_tot$batpass_prop)
 plot(bats_tot$wind_mean, bats_tot$batpass_prop)
 plot(bats_tot$wind_max, bats_tot$batpass_prop)
 
+hist(bats_tot$Batpass_sum)# This goes out to 700 ish bat passes per night. For modeling with count data, should make a bat pass50 column to work with. 
+
 #The batspass_prop variable is "number of hours with >0 batpass" / "total number of observation hours" - per night
 #This is your response, but often proportion variables cannot be modelled directly 
 ```
@@ -315,9 +317,6 @@ dev.off()
 vis.gam(m2, view = c("temp_mean", "wind_mean"))    
 vis.gam(m2, view = c("wind_mean", "temp_mean")) 
 
-
-
-
 ```
 
 ## Recap
@@ -471,227 +470,6 @@ vis.gam(m4, view = c("wind_mean", "temp_mean"))
 ```
 
 
---------------------------------------------------------------------------------
-
-# m5
-### Remove the met tower 
-### Prune the dataset 
-```{r}
-
-bats_ground <- bats_tot %>% filter(Habitat != "MeteorologicalTower") %>% droplevels
-# 811 observations instead of 951
-
-```
-
-
-```{r}
-m5 <- gam(cbind(yes_batpass,no_batpass) ~
-            s(Locality, bs = "re") +                      
-            s(jnight, by = Habitat, bs = "gp", k =90) +    
-            Habitat +                                      
-            s(temp_mean) +                                 
-            s(wind_mean) +                                 
-            ti(temp_mean,wind_mean, k = c(15, 15)) ,                      
-          data = bats_ground, method = "REML",                  
-          family = binomial, select=TRUE)              
-summary(m5) # R-sq.(adj) =  0.503   Deviance explained = 54.6%
-
-```
-
-
-```{r}
-
-par(mfrow = c(2,2))
-gam.check(m5)           #look at the plots, but also the output to check if k needs to be adjusted
-gam.check(m5, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
-
-# Now the smooth terms pass the basis dimension test! 
-
-overdispersion.m5 <- sum( residuals(m5, "pearson")^2 ) / m5$df.residual
-overdispersion.m5
-# 0.3749742 - super duper under dispersed , but the fit of the k value is much better. 
-
-# From Katrine's Step3B GAM modelling script: 
-#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
-
-```
-
-### Basis dimension (k) checking results: 
-
-```{r}
-
-bmp(file.path(output_today, "checking k dimensions m5 bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
-
-plot(m5, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
-
-draw(m5, scales ="free")         #function 'draw' is from package 'gratia'
-draw(m5, scales ="fixed")
-# wind is too wiggly, but there is no relationship for the met tower(probably too little data...) 
-dev.off() 
-
-bmp(file.path(output_today, "3D gam m5 bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
-par(mfrow = c(1,2))
-vis.gam(m5, view = c("temp_mean", "wind_mean"))   
-vis.gam(m5, view = c("wind_mean", "temp_mean")) 
-dev.off()
-
-vis.gam(m5, view = c("temp_mean", "wind_mean"))   
-vis.gam(m5, view = c("wind_mean", "temp_mean")) 
-
-
-
-
-```
-
-
---------------------------------------------------------------------------------
-
-# m6
-### Dataset does not include the met tower
-### Otherwise, the same model as m1 
-```{r}
-
-bats_ground <- bats_tot %>% filter(Habitat != "MeteorologicalTower") %>% droplevels
-# 811 observations instead of 951
-
-```
-
-
-```{r}
-
-m6 <- gam(cbind(yes_batpass,no_batpass) ~
-              s(Locality, bs = "re") +                       
-              s(jnight, by = Habitat, bs = "gp", k =90) +    
-              Habitat +                                     
-              s(temp_mean) +                                
-              s(wind_mean) +                                
-              ti(temp_mean,wind_mean) ,                      
-              data = bats_ground, method = "REML",                 
-              family = binomial, select=TRUE)                
-
-summary(m6) # R-sq.(adj) =  0.415   Deviance explained = 44.4%
-```
-
-
-```{r}
-
-par(mfrow = c(2,2))
-gam.check(m6)           #look at the plots, but also the output to check if k needs to be adjusted
-gam.check(m6, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
-
-# Now the smooth terms pass the basis dimension test! 
-
-overdispersion.m6 <- sum( residuals(m6, "pearson")^2 ) / m6$df.residual
-overdispersion.m6
-# 0.5615471 - super duper under dispersed , and the k indices are a mess. This is the worst so far.  
-
-# From Katrine's Step3B GAM modelling script: 
-#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
-
-```
-
-### Basis dimension (k) checking results: 
-
-```{r}
-
-bmp(file.path(output_today, "checking k dimensions m6 bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
-
-plot(m6, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
-
-draw(m6, scales ="free")         #function 'draw' is from package 'gratia'
-draw(m6, scales ="fixed")
-# wind is too wiggly, but there is no relationship for the met tower(probably too little data...) 
-dev.off() 
-
-bmp(file.path(output_today, "3D gam m6 bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
-par(mfrow = c(1,2))
-vis.gam(m6, view = c("temp_mean", "wind_mean"))    
-vis.gam(m6, view = c("wind_mean", "temp_mean")) 
-dev.off()
-
-vis.gam(m6, view = c("temp_mean", "wind_mean"))    
-vis.gam(m6, view = c("wind_mean", "temp_mean")) 
-
-
-
-
-```
-
---------------------------------------------------------------------------------
-
-# m7
-### Dataset does not include the met tower
-### otherwise, remove adjust k term in the 3 night by habitat term 
-
-
-```{r}
-
-m7 <- gam(cbind(yes_batpass,no_batpass) ~
-              s(Locality, bs = "re") +                       
-              s(jnight, by = Habitat, bs = "gp") +    
-              Habitat +                                     
-              s(temp_mean) +                                
-              s(wind_mean) +                                
-              ti(temp_mean,wind_mean) ,                      
-              data = bats_ground, method = "REML",                 
-              family = binomial, select=TRUE)                
-
-summary(m7) # R-sq.(adj) =  0.359   Deviance explained = 37.3%
-```
-
-
-```{r}
-
-par(mfrow = c(2,2))
-gam.check(m7)           #look at the plots, but also the output to check if k needs to be adjusted
-gam.check(m7, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
-
-# Now the smooth terms pass the basis dimension test! 
-
-overdispersion.m7 <- sum( residuals(m7, "pearson")^2 ) / m7$df.residual
-overdispersion.m7
-# 0.826536 - The k indices are a mess but it isn't under or overdispersed.... 
-
-# From Katrine's Step3B GAM modelling script: 
-#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
-
-```
-
-
-### Basis dimension (k) checking results: 
-
-```{r}
-
-bmp(file.path(output_today, "checking k dimensions m7 bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
-
-plot(m7, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
-
-draw(m7, scales ="free")         #function 'draw' is from package 'gratia'
-draw(m7, scales ="fixed")
-dev.off() 
-
-bmp(file.path(output_today, "3D gam m7 bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
-par(mfrow = c(1,2))
-vis.gam(m7, view = c("temp_mean", "wind_mean"))    
-vis.gam(m7, view = c("wind_mean", "temp_mean")) 
-dev.off()
-
-vis.gam(m7, view = c("temp_mean", "wind_mean"))    
-vis.gam(m7, view = c("wind_mean", "temp_mean")) 
-
- 
-
-```
-
---------------------------------------------------------------------------------
-## Recap
-
-Ultimately the goal for this model group is to determine how weather patterns influence bat activity across the park. 
-Therefore, it is better to include the met tower data. So pruning the dataset in this way is not helpful.
-
-I could adjust high winds or temperatures to a certain cutoff to reduce some variability there but I am not ready to do that just yet. Instead, I am better there is a way to adjust the k values systematically across the smooth terms. I will go back to using temperature as a linear term, as it basically behaves this way naturally. 
---------------------------------------------------------------------------------
-
 # m8
 ### Bats total dataset
 ### Adjust the k value of  s(jnight, by = Habitat, bs = "gp") to k = 15
@@ -755,6 +533,7 @@ vis.gam(m8, view = c("wind_mean", "temp_mean"))
 
 ## Recap:
 This slightly improved the overall model fit, so I will keep this model but add another manual k term to the s(wind_mean) term. 
+
 --------------------------------------------------------------------------------
 
 # m9
@@ -877,192 +656,6 @@ dev.off()
 
 vis.gam(m10, view = c("temp_mean", "wind_mean"))    
 vis.gam(m10, view = c("wind_mean", "temp_mean")) 
-
-```
-
---------------------------------------------------------------------------------
-
-# m11
-### Adjust ti(temp_mean,wind_mean, k = c(30,30))
-```{r}
-
-m11 <- gam(cbind(yes_batpass,no_batpass) ~
-              s(Locality, bs = "re") +                       
-              s(jnight, by = Habitat, bs = "gp", k = 15) +    
-              Habitat +                                     
-              temp_mean +                                
-              s(wind_mean, k = 20) +                                
-              ti(temp_mean,wind_mean, k = c(30,30)) ,                      
-              data = bats_tot, method = "REML",                 
-              family = binomial, select=TRUE)                
-
-summary(m11) 
-```
-
-
-```{r}
-
-par(mfrow = c(2,2))
-gam.check(m11)           #look at the plots, but also the output to check if k needs to be adjusted
-gam.check(m11, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
-
-# Now the smooth terms pass the basis dimension test! 
-
-overdispersion.m11 <- sum( residuals(m11, "pearson")^2 ) / m11$df.residual
-overdispersion.m11
-# 0.5309308 - The k indices look good but now the under dispersion is worse - I have gone too far in hiking up the k values for the ti() term. 
-
-# From Katrine's Step3B GAM modelling script: 
-#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
-
-```
-
-
-### Basis dimension (k) checking results: 
-
-```{r}
-
-bmp(file.path(output_today, "checking k dimensions m11 bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
-
-plot(m11, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
-
-draw(m11, scales ="free")         #function 'draw' is from package 'gratia'
-draw(m11, scales ="fixed")
-# wind is too wiggly, but there is no relationship for the met tower(probably too little data...) 
-dev.off() 
-
-bmp(file.path(output_today, "3D gam m11 bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
-par(mfrow = c(1,2))
-vis.gam(m11, view = c("temp_mean", "wind_mean"))    
-vis.gam(m11, view = c("wind_mean", "temp_mean")) 
-dev.off()
-
-vis.gam(m11, view = c("temp_mean", "wind_mean"))    
-vis.gam(m11, view = c("wind_mean", "temp_mean")) 
-
-```
---------------------------------------------------------------------------------
-
-# m12
-### s(jnight, by = Habitat, bs = "gp", k = 20)
-```{r}
-
-m12 <- gam(cbind(yes_batpass,no_batpass) ~
-              s(Locality, bs = "re") +                       
-              s(jnight, by = Habitat, bs = "gp", k = 20) +    
-              Habitat +                                     
-              temp_mean +                                
-              s(wind_mean, k = 20) +                                
-              ti(temp_mean,wind_mean, k = c(25,25)) ,                      
-              data = bats_tot, method = "REML",                 
-              family = binomial, select=TRUE)                
-
-summary(m12) 
-
-```
-
-
-```{r}
-
-par(mfrow = c(2,2))
-gam.check(m12)           #look at the plots, but also the output to check if k needs to be adjusted
-gam.check(m12, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
-
-# Now the smooth terms pass the basis dimension test! 
-
-overdispersion.m12 <- sum( residuals(m12, "pearson")^2 ) / m12$df.residual
-overdispersion.m12
-# 0.604303 - Under dispersed and the k indices are still off. 
-
-# From Katrine's Step3B GAM modelling script: 
-#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
-
-```
-
-
-### Basis dimension (k) checking results: 
-
-```{r}
-
-bmp(file.path(output_today, "checking k dimensions m12 bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
-
-plot(m12, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
-
-draw(m12, scales ="free")         #function 'draw' is from package 'gratia'
-draw(m12, scales ="fixed")
-# wind is too wiggly, but there is no relationship for the met tower(probably too little data...) 
-dev.off() 
-
-bmp(file.path(output_today, "3D gam m12 bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
-par(mfrow = c(1,2))
-vis.gam(m12, view = c("temp_mean", "wind_mean"))    
-vis.gam(m12, view = c("wind_mean", "temp_mean")) 
-dev.off()
-
-vis.gam(m12, view = c("temp_mean", "wind_mean"))    
-vis.gam(m12, view = c("wind_mean", "temp_mean")) 
-
-```
-
---------------------------------------------------------------------------------
-
-# m13
-### s(wind_mean, k = 25)
-```{r}
-
-m13 <- gam(cbind(yes_batpass,no_batpass) ~
-              s(Locality, bs = "re") +                       
-              s(jnight, by = Habitat, bs = "gp", k = 20) +    
-              Habitat +                                     
-              temp_mean +                                
-              s(wind_mean, k = 25) +                                
-              ti(temp_mean,wind_mean, k = c(25,25)) ,                      
-              data = bats_tot, method = "REML",                 
-              family = binomial, select=TRUE)                
-
-summary(m13) 
-
-```
-
-
-```{r}
-
-par(mfrow = c(2,2))
-gam.check(m13)           #look at the plots, but also the output to check if k needs to be adjusted
-gam.check(m13, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
-
-# Now the smooth terms pass the basis dimension test! 
-
-overdispersion.m13 <- sum( residuals(m13, "pearson")^2 ) / m13$df.residual
-overdispersion.m13
-# 0.5874084 - Under dispersed and the k indices are still off. 
-
-# From Katrine's Step3B GAM modelling script: 
-#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
-
-```
-
-### Basis dimension (k) checking results: 
-
-```{r}
-
-bmp(file.path(output_today, "checking k dimensions m13 bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
-
-plot(m13, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
-
-draw(m13, scales ="free")         #function 'draw' is from package 'gratia'
-draw(m13, scales ="fixed")
-# wind is too wiggly, but there is no relationship for the met tower(probably too little data...) 
-dev.off() 
-
-bmp(file.path(output_today, "3D gam m13 bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
-par(mfrow = c(1,2))
-vis.gam(m13, view = c("temp_mean", "wind_mean"))    
-vis.gam(m13, view = c("wind_mean", "temp_mean")) 
-dev.off()
-
-vis.gam(m13, view = c("temp_mean", "wind_mean"))    
-vis.gam(m13, view = c("wind_mean", "temp_mean")) 
 
 ```
 
@@ -1485,36 +1078,7 @@ summary(m20)
 
 ```
 
-Family: Negative Binomial(1.362) 
-Link function: log 
 
-Formula:
-cbind(Batpass_sum) ~ s(Locality, bs = "re") + s(jnight, 
-    by = Habitat, bs = "gp") + Habitat + temp_mean + s(wind_mean) + 
-    ti(temp_mean, wind_mean, k = c(25, 25))
-
-Parametric coefficients:
-                  Estimate Std. Error z value Pr(>|z|)    
-(Intercept)       -2.97930    0.82462  -3.613 0.000303 ***
-HabitatNatural     2.25330    0.72635   3.102 0.001921 ** 
-HabitatTurbinePad  2.24404    0.72624   3.090 0.002002 ** 
-temp_mean          0.19850    0.02854   6.956  3.5e-12 ***
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-Approximate significance of smooth terms:
-                                         edf Ref.df  Chi.sq p-value    
-s(Locality)                           5.8881      6 312.566  <2e-16 ***
-s(jnight):HabitatMeteorologicalTower  0.2838     11   0.342    0.23    
-s(jnight):HabitatNatural              4.6293     11  33.252  <2e-16 ***
-s(jnight):HabitatTurbinePad           7.2138     11  80.748  <2e-16 ***
-s(wind_mean)                          3.7857      9  66.655  <2e-16 ***
-ti(temp_mean,wind_mean)              50.9340     81 206.836  <2e-16 ***
----
-Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
-
-R-sq.(adj) =  0.419   Deviance explained = 69.7%
--REML = 3119.6  Scale est. = 1         n = 951
 
 ```{r}
 bmp(file.path(output_today, "diagnostic plots bats_tot m20.jpg"), width = 9, height = 6, units = "in", res = 350)
@@ -1572,127 +1136,6 @@ BIC(m19, m20)
 
 --------------------------------------------------------------------------------
 
---------------------------------------------------------------------------------
-
-# Make prediction figures
-### Better visualize the wind and temperature cutoffs
-
-### May be helpful to reference later: 
-https://cran.r-project.org/web/packages/tidymv/vignettes/plot-smooths.html
-https://drmowinckels.io/blog/2019-11-16-plotting-gamm-interactions-with-ggplot2/
-https://www.imsbio.co.jp/RGM/R_rdfile?f=itsadug/man/pvisgam.Rd&d=R_CC
-
-```{r}
-
-# from this blog 
-# https://drmowinckels.io/blog/2019-11-16-plotting-gamm-interactions-with-ggplot2/
-
-# library(itsadug) 
-# pvisgam(m20, view = c("wind_mean", "temp_mean")) 
-# 
-# ct_int_pred <- expand.grid(temp_mean= c(8,10, 12, 14, 16, 18, 20),
-#                           wind_mean = c(2, 4, 6, 8, 10, 12), 
-#                           Habitat = levels(bats_tot$Habitat), 
-#                           Locality = levels(bats_tot$Locality), 
-#                           jnight = seq(min(bats_tot$jnight), max(bats_tot$jnight), 1))
-#               
-# ct_int_pred <- predict(m20, newdata = ct_int_pred, 
-#                       se.fit = TRUE) %>%  
-#   as_tibble() %>% 
-#   cbind(ct_int_pred)
-# 
-# dim(ct_int_pred)
-# # 91728     7
-# 
-# ggplot(ct_int_pred, aes(x=temp_mean, y=wind_mean)) + 
-#   geom_tile(aes(fill = fit)) +
-#   geom_contour(aes(z = fit), colour = "white")
-# 
-# ct_int_pred %>%
-#   ggplot(aes(x=wind_mean, y=fit)) +
-#   geom_line(aes(colour=wind_mean))
-# 
-# ## This does not look all that great unfortunately 
-# 
-# # from this:
-# # https://stackoverflow.com/questions/73738521/how-to-visualize-gam-results-with-contour-tile-plot-using-ggplot2
-# 
-# # Try using the function exclude.too.far() to prune the data a bit 
-# 
-# drop <- exclude.too.far(ct_int_pred$temp_mean, ct_int_pred$temp_mean, bats_tot$temp_mean, bats_tot$wind_mean, dist = 0.1)
-# 
-# df_pred <- ct_int_pred |>
-#   mutate(fitted = if_else(drop, NA_real, fitted))
-# 
-# # Error in `mutate()`:
-# # ! Problem while computing `fitted = if_else(drop, NA_real_, fitted)`.
-# # Caused by error in `if_else()`:
-# # ! `false` must be a double vector, not a function.
-# # Run `rlang::last_error()` to see where the error occurred.
-# 
-# ------------------------------------------------------
-# summary(bats_tot$temp_mean)
-#   #  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#   # 8.789  13.419  14.930  15.647  17.494  24.579 
-# 
-# summary(bats_tot$wind_mean)
-#   #  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#   # 2.571   4.486   6.012   6.249   7.857  13.413 
-# 
-# #Scetching the results - difference between Habitats
-# pdata <- with(bats_tot,
-#               expand.grid(temp_mean= c(8,10, 12, 14, 16, 18, 20),
-#                           wind_mean = c(2, 4, 6, 8, 10, 12), 
-#                           Habitat = levels(bats_tot$Habitat), 
-#                           Locality = levels(bats_tot$Locality), 
-#                           jnight = seq(min(jnight), max(jnight), 1))) #1 to keep the integer format
-# 
-# summary(pdata)
-# head(pdata)
-# tail(pdata)
-# 
-# fit <- data.frame(predict(m20, newdata=pdata, se.fit=TRUE, type = 'response'))
-# fit <- transform(fit, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
-# pred <- cbind(pdata,fit)
-# 
-# head(pred)
-# 
-# plt2 <- ggplot(pred, aes(x=wind_mean, y = fit)) +
-#     geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5) +
-#     geom_line() + facet_wrap( ~ Habitat, scales ='free_y') +
-#     labs(x = "Mean wind speeds per night (m/s)", y ="Bat passes per night")
-# plt2 # doesn't make much sense to have negative bat passes... 
-
-
-# this approach for plotting predictions make a ginormous data set which is pretty much impossible to plot unfortunately. 
-
-# m20_p <- predict_gam(m20)
-# m20_p 
-# dim(m20_p)
-# #3000000       7
-# 
-# summary(m20_p)
-# summary(m20_p$temp_mean)
-#   #  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#   # 8.789  12.656  16.684  16.684  20.712  24.579 
-# summary(m20_p$wind_mean)
-  #  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-  # 2.571   5.226   7.992   7.992  10.758  13.413 
-
-#write.csv(m20_p, file.path(output_today, "prediction model 20.csv"))
-
-# This crashes my computer unfortunately: need to create a smaller preditciton dataset probably. 
-
-# p <- m20_p %>% ggplot(aes(x = temp_mean, y = fit)) +  geom_smooth_ci(Habitat)
-# p 
-# 
-# 
-# p1 <- m20_p %>% ggplot(aes(x = wind_mean, y = fit)) +  geom_smooth_ci(Habitat)
-# p1
-```
-
---------------------------------------------------------------------------------
-
 # m21
 ### Facility rather than Locality as a random effect
 ### try something similar to model 20, with some slightly different smoother terms 
@@ -1725,7 +1168,7 @@ summary(m21)
 
 
 ```{r}
-windows()
+
 par(mfrow = c(2,2))
 gam.check(m21)           #look at the plots, but also the output to check if k needs to be adjusted
 gam.check(m21, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
@@ -1747,14 +1190,14 @@ overdispersion.m21
 ```{r}
 
 bmp(file.path(output_today, "checking k dimensions m21 bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
-windows()
+
 plot(m21, pages=1,scheme=2,shade=TRUE,seWithMean = TRUE)
 
 draw(m21, scales ="free")         #function 'draw' is from package 'gratia'
 draw(m21, scales ="fixed")
 # wind is too wiggly, but there is no relationship for the met tower(probably too little data...) 
 dev.off() 
-windows()
+
 bmp(file.path(output_today, "3D gam m21 bats_tot.jpg"), width = 9, height = 6, units = "in", res = 350)
 par(mfrow = c(1,2))
 vis.gam(m21, view = c("temp_mean", "wind_mean"))    
@@ -1788,8 +1231,8 @@ names(bats_tot)
 
 ## option 1 
 
-library(itsadug)
-pvisgam(m21, view = c("wind_mean", "temp_mean"))
+# library(itsadug)
+# pvisgam(m21, view = c("wind_mean", "temp_mean"))
 
 ct_int_pred <- expand.grid(temp_mean= c(8,10, 12, 14, 16, 18, 20),
                           wind_mean = c(2, 4, 6, 8, 10, 12),
@@ -1826,7 +1269,7 @@ ct_int_pred1 %>%
   geom_point(aes(colour=temp_mean)) + facet_wrap(~Habitat)
 # 
 # ## This still does not look all that great unfortunately 
-windows()
+
 ggplot(ct_int_pred2, aes(x=temp_mean, y=wind_mean)) +
   geom_tile(aes(fill = fit)) +
   geom_contour(aes(z = fit), colour = "white")
@@ -1839,81 +1282,6 @@ ct_int_pred2 %>%
   ggplot(aes(x=temp_mean, y=fit)) +
   geom_point(aes(colour=temp_mean)) + facet_wrap(~Habitat)
 
-# # from this:
-# # https://stackoverflow.com/questions/73738521/how-to-visualize-gam-results-with-contour-tile-plot-using-ggplot2
-# 
-# # Try using the function exclude.too.far() to prune the data a bit 
-# 
-# drop <- exclude.too.far(ct_int_pred$temp_mean, ct_int_pred$temp_mean, bats_tot$temp_mean, bats_tot$wind_mean, dist = 0.1)
-# 
-# df_pred <- ct_int_pred |>
-#   mutate(fitted = if_else(drop, NA_real, fitted))
-# 
-# # Error in `mutate()`:
-# # ! Problem while computing `fitted = if_else(drop, NA_real_, fitted)`.
-# # Caused by error in `if_else()`:
-# # ! `false` must be a double vector, not a function.
-# # Run `rlang::last_error()` to see where the error occurred.
-# 
-# ------------------------------------------------------
-# summary(bats_tot$temp_mean)
-#   #  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#   # 8.789  13.419  14.930  15.647  17.494  24.579 
-# 
-# summary(bats_tot$wind_mean)
-#   #  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#   # 2.571   4.486   6.012   6.249   7.857  13.413 
-# 
-# #Scetching the results - difference between Habitats
-# pdata <- with(bats_tot,
-#               expand.grid(temp_mean= c(8,10, 12, 14, 16, 18, 20),
-#                           wind_mean = c(2, 4, 6, 8, 10, 12), 
-#                           Habitat = levels(bats_tot$Habitat), 
-#                           Locality = levels(bats_tot$Locality), 
-#                           jnight = seq(min(jnight), max(jnight), 1))) #1 to keep the integer format
-# 
-# summary(pdata)
-# head(pdata)
-# tail(pdata)
-# 
-# fit <- data.frame(predict(m20, newdata=pdata, se.fit=TRUE, type = 'response'))
-# fit <- transform(fit, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
-# pred <- cbind(pdata,fit)
-# 
-# head(pred)
-# 
-# plt2 <- ggplot(pred, aes(x=wind_mean, y = fit)) +
-#     geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5) +
-#     geom_line() + facet_wrap( ~ Habitat, scales ='free_y') +
-#     labs(x = "Mean wind speeds per night (m/s)", y ="Bat passes per night")
-# plt2 # doesn't make much sense to have negative bat passes... 
-
-
-# this approach for plotting predictions make a ginormous data set which is pretty much impossible to plot unfortunately. 
-
-# m20_p <- predict_gam(m20)
-# m20_p 
-# dim(m20_p)
-# #3000000       7
-# 
-# summary(m20_p)
-# summary(m20_p$temp_mean)
-#   #  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#   # 8.789  12.656  16.684  16.684  20.712  24.579 
-# summary(m20_p$wind_mean)
-  #  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-  # 2.571   5.226   7.992   7.992  10.758  13.413 
-
-#write.csv(m20_p, file.path(output_today, "prediction model 20.csv"))
-
-# This crashes my computer unfortunately: need to create a smaller preditciton dataset probably. 
-
-# p <- m20_p %>% ggplot(aes(x = temp_mean, y = fit)) +  geom_smooth_ci(Habitat)
-# p 
-# 
-# 
-# p1 <- m20_p %>% ggplot(aes(x = wind_mean, y = fit)) +  geom_smooth_ci(Habitat)
-# p1
 ```
 
 --------------------------------------------------------------------------------
