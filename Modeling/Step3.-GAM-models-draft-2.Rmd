@@ -108,7 +108,7 @@ output <- "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/2. Mar
 dir.name <- str_c(output,"/", file.name, "_", todays_date)
  dir.name
 # 
-# dir.create(dir.name) # be careful not to recreate existing directories 
+ dir.create(dir.name) # be careful not to recreate existing directories 
 
 output_today <- dir.name
 output_today
@@ -138,7 +138,7 @@ bats_tot$Facility <- factor(bats_tot$Facility)
 bats_tot$jnight <- yday(bats_tot$night)
 
 #Explore relationships and look check for outliers again
-#windows()
+## windows()
 par(mfrow = c(3,2))
 plot(bats_tot$jnight, bats_tot$batpass_prop)            
 plot(bats_tot$temp_mean, bats_tot$batpass_prop)
@@ -155,6 +155,9 @@ plot(bats_tot$wind_max, bats_tot$batpass_prop)
 # This is now only nightly aggregated so I am not sure this has the same intended effect... 
 
 bats_tot$yes_batpass <- bats_tot$batpass01_sum   #batpass01_sum is sum of '1' values in batpass01, i.e. number of observ. hours per night when batpass recorded
+
+## this dataset was not aggregaed up from hourly aggregated data, just to nightly so it will be slightly different but still essentially the same variable. 
+
 bats_tot$no_batpass <- bats_tot$batpass01_length - bats_tot$batpass01_sum #batpass01_length is number of observ. hours per night
 
 summary(bats_tot)
@@ -167,6 +170,8 @@ bats_tot$batpass50 <- bats_tot$Batpass_sum
 
 # reassign batpass values over 50 to 50
 bats_tot$batpass50[bats_tot$Batpass_sum>50] <- 50
+## Do NOT use this as a response variable in models. 
+
 
 
 ### Drop the met tower 
@@ -178,14 +183,13 @@ summary(df)
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-
 # Binary response 
 ### s(Locality, bs = "re")
 ### Removed the temp * wind interaction 
 ```{r}
 m1 <- gam(cbind(yes_batpass,no_batpass) ~
               s(Locality, bs = "re") +                       
-              s(jnight, by = Habitat, bs = "gp", k = 30) +    
+              s(jnight, by = Habitat, bs = "gp", k = 90) +    
               Habitat +                                     
               temp_mean +                                
               s(wind_mean, k = 15), 
@@ -195,7 +199,7 @@ m1 <- gam(cbind(yes_batpass,no_batpass) ~
 summary(m1) 
 
 ## Diagnostics ## 
-#windows()
+## windows()
 par(mfrow = c(2,2))
 gam.check(m1)           
 gam.check(m1, rep=500)  
@@ -207,8 +211,6 @@ gam.check(m1, rep=500)
 overdispersion.m1 <- sum( residuals(m1, "pearson")^2 ) / m1$df.residual
 overdispersion.m1
 
-# From Katrine's Step3B GAM modelling script: 
-#[1] 1.022701    #this value should ideally be 0.8-1.2, but it's not very bad!
 
 ```
 ## Notes on model fit
@@ -270,12 +272,15 @@ newdata2 <- expand.grid(temp_mean= c(4, 6, 8,10, 12, 14, 16, 18, 20),
                           jnight = seq(min(df$jnight), max(df$jnight), 1))
 
 
+
 # Turbine 2
 newdata2a <- expand.grid(temp_mean= c(4, 6, 8,10, 12, 14, 16, 18, 20),
                           wind_mean = c(2, 4, 6, 8, 10, 12, 14, 16),
                           Habitat = levels(df$Habitat),
                           Locality = "Turbine2",
                           jnight = seq(min(df$jnight), max(df$jnight), 1))
+
+
 
 
 ############################################
@@ -285,26 +290,31 @@ newdata2a <- expand.grid(temp_mean= c(4, 6, 8,10, 12, 14, 16, 18, 20),
 # Wind and temperature are fixed
 
 # Turbine 9
-fit1 <- predict.gam(m1, newdata = newdata1, type = "response")
+fit1 <- predict.gam(m1, newdata = newdata1, se.fit=TRUE, type = "response")
 fit1df <- data.frame(newdata1, fit1)
+fit1df <- transform(fit1df, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
 summary(fit1df)
 
 # Turbine 2
-fit1a <- predict.gam(m1, newdata = newdata1a, type = "response")
+fit1a <- predict.gam(m1, newdata = newdata1a, se.fit=TRUE, type = "response")
 fit1adf <- data.frame(newdata1a, fit1a)
+fit1adf <- transform(fit1adf, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
 summary(fit1adf)
 
 # -----------------------------------------------------------------------------
 # Wind and temperature are a range 
 
 # Turbine 9
-fit2 <- predict.gam(m1, newdata = newdata2, type = "response")
+fit2 <- predict.gam(m1, newdata = newdata2, se.fit=TRUE, type = "response")
 fit2df <- data.frame(newdata2, fit2)
+fit2df <- transform(fit2df, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
 summary(fit2df)
 
+
 # Turbine 2
-fit2a <- predict.gam(m1, newdata = newdata2a, type = "response")
+fit2a <- predict.gam(m1, newdata = newdata2a, se.fit=TRUE, type = "response")
 fit2adf <- data.frame(newdata2a, fit2a)
+fit2adf <- transform(fit2adf, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
 summary(fit2adf)
 
 ```
@@ -312,16 +322,18 @@ summary(fit2adf)
 # Plotting predictions
 
 ## Comparing habitats across seasons
-```{r}
+```{r} 
 # Turbine 9
-fit1df %>% ggplot(aes(x=jnight, y=fit1)) +
-  geom_line() + facet_wrap(~Habitat) + ggtitle("Turbine 9")
+fit1df %>% ggplot(aes(x=jnight, y=fit)) +
+  geom_line() + facet_wrap(~Habitat) + ggtitle("Turbine 9") + 
+  geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5)
 
 # -----------------------------------------------------------------------------
 
 # Turbine 2
-fit1adf %>% ggplot(aes(x=jnight, y=fit1a)) +
-  geom_line() + facet_wrap(~Habitat) + ggtitle ("Turbine 2")
+fit1adf %>% ggplot(aes(x=jnight, y=fit)) +
+  geom_line() + facet_wrap(~Habitat) + ggtitle ("Turbine 2") +
+  geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5)
 
 ## Add confidence intervals, clean up the background 
 ```
@@ -333,42 +345,44 @@ fit1adf %>% ggplot(aes(x=jnight, y=fit1a)) +
 # Using colored points to represent average nightly wind speeds and temperatures... perhaps there is a more meaningful way to represent this. 
 
 # Turbine 9 - wind 
-fit2df %>% ggplot(aes(x=jnight, y=fit2)) +
-  geom_point(aes(color = wind_mean)) + ggtitle("Turbine 9")
+fit2df %>% ggplot(aes(x=jnight, y=fit)) +
+  geom_point(aes(color = wind_mean)) + ggtitle("Turbine 9") 
+
 
 # Turbine 9 - temp 
-fit2df %>% ggplot(aes(x=jnight, y=fit2)) +
+fit2df %>% ggplot(aes(x=jnight, y=fit)) +
   geom_point(aes(color = temp_mean)) + ggtitle("Turbine 9")
+
 
 # -----------------------------------------------------------------------------
 
 # Turbine 2 - wind
-fit2adf %>% ggplot(aes(x=jnight, y=fit2a)) +
+fit2adf %>% ggplot(aes(x=jnight, y=fit)) +
   geom_point(aes(color = wind_mean))  + ggtitle ("Turbine 2")
 
 # Turbine 2 - temp 
-fit2adf %>% ggplot(aes(x=jnight, y=fit2a)) +
+fit2adf %>% ggplot(aes(x=jnight, y=fit)) +
   geom_point(aes(color = temp_mean))  + ggtitle ("Turbine 2")
 
 # -----------------------------------------------------------------------------
 
 # Temp is the response variable 
 # Turbine 9
-fit2df %>% ggplot(aes(x=temp_mean, y=fit2)) +
+fit2df %>% ggplot(aes(x=temp_mean, y=fit)) +
   geom_point() + ggtitle("Turbine 9")
 
 # Turbine 2
-fit2adf %>% ggplot(aes(x=temp_mean, y=fit2a)) +
+fit2adf %>% ggplot(aes(x=temp_mean, y=fit)) +
   geom_point()  + ggtitle ("Turbine 2")
 
 
 # Wind is the response variable 
 # Turbine 9
-fit2df %>% ggplot(aes(x=wind_mean, y=fit2)) +
+fit2df %>% ggplot(aes(x=wind_mean, y=fit)) +
   geom_point() + ggtitle("Turbine 9")
 
 # Turbine 2
-fit2adf %>% ggplot(aes(x=wind_mean, y=fit2a)) +
+fit2adf %>% ggplot(aes(x=wind_mean, y=fit)) +
   geom_point()  + ggtitle ("Turbine 2")
 
 ## Not terribly insightful - Could try plotting predictions for each temperature degree change or wind speed change? 
@@ -382,6 +396,71 @@ fit2adf %>% ggplot(aes(x=wind_mean, y=fit2a)) +
 
 ```
 
+
+--------------------------------------------------------------------------------
+## Katrine's suggestion/code for visualizing different wind speeds and temperatures
+### Binary model predictions 
+```{r}
+# For plotting temp 
+
+newdata_temp<- expand.grid(temp_mean = c(4, 10, 16, 20),
+                          wind_mean = seq(min(df$wind_mean), max(df$wind_mean), length = 300),
+                          Habitat = levels(df$Habitat),
+                          Locality = "Turbine9",
+                          jnight = 212)  
+
+
+# Turbine 9, fewer wind and temp values 
+fit_temp <- predict.gam(m1, newdata = newdata_temp, se.fit=TRUE, type = "response")
+fit_temp_df <- data.frame(newdata_temp, fit_temp)
+fit_temp_df <- transform(fit_temp_df, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
+summary(fit_temp_df)
+
+# Plotting temp at various wind speeds 
+new_labels <- c("4" = "temp 4", "10" = "temp 10", "16" = "temp 16", "20" = "temp 20")
+# Using binary response model, turbine 9 predictions 
+plt1 <- fit_temp_df %>% 
+  ggplot( aes(x=wind_mean, y = fit, group = factor(temp_mean))) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5) +
+  geom_line() + facet_wrap(~ temp_mean, scales ='fixed', labeller = labeller(temp_mean = new_labels)) +
+  labs(x = "Average wind speed m/s", y ="Proportion of hours per night with batpass>0")
+plt1
+
+## ----------------------------------------------------------------------------
+
+## For plotting wind 
+summary(df$temp_mean)
+
+# Turbine 9, fewer temp and wind variables
+newdata_wind<- expand.grid(temp_mean = seq(min (df$temp_mean), max (df$temp_mean), length = 300),
+                          wind_mean = c(2, 8, 12, 16),
+                          Habitat = levels(df$Habitat),
+                          Locality = "Turbine9",
+                          jnight = 212) 
+
+
+# Turbine 9, fewer wind and temp values 
+fit_wind <- predict.gam(m1, newdata = newdata_wind, se.fit=TRUE, type = "response")
+fit_wind_df <- data.frame(newdata_wind, fit_wind)
+fit_wind_df <- transform(fit_wind_df, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
+summary(fit_wind_df)
+
+
+## Plotting wind speeds at various temperatures 
+
+new_labels <- c("2" = "wind 2 m/s", "8" = "wind 8 m/s", "12" = "wind 12 /s", "16" = "wind 16 m/s")
+
+# Using binary response model, turbine 9 predictions 
+plt2 <- fit_wind_df %>% 
+  ggplot(aes(x=temp_mean, y = fit, group = factor(wind_mean)), fill = 'grey', alpha = 0.5) +
+  geom_line() + facet_wrap(~ wind_mean, scales ='fixed', labeller = labeller(wind_mean = new_labels)) +
+  labs(x = "Average temperature", y ="Proportion of hours per night with batpass>0")
+plt2
+
+
+```
+
+
 --------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
@@ -389,7 +468,7 @@ fit2adf %>% ggplot(aes(x=wind_mean, y=fit2a)) +
 # m2
 ### Count response 
 ```{r}
-m2 <- gam(batpass50 ~
+m2 <- gam(Batpass_sum ~
               s(Locality, bs = "re") +                       
               s(jnight, by = Habitat, bs = "gp", k = 90) +    
               Habitat +                                     
@@ -403,7 +482,7 @@ summary(m2)
 
 
 ```{r}
-windows()
+# windows()
 par(mfrow = c(2,2))
 gam.check(m2)           #look at the plots, but also the output to check if k needs to be adjusted
 gam.check(m2, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the observed values should lie within
@@ -413,8 +492,6 @@ gam.check(m2, rep=500)  #rep=500 gives you a polygon on the QQ plot, which the o
 overdispersion.m2 <- sum( residuals(m2, "pearson")^2 ) / m2$df.residual
 overdispersion.m2
 
-# From Katrine's Step3B GAM modelling script: 
-#[1] 1.260461    #slightly overdispersed but horribly 
 
 ```
 
@@ -494,26 +571,30 @@ newdata2a <- expand.grid(temp_mean= c(4, 6, 8,10, 12, 14, 16, 18, 20),
 # Wind and temperature are fixed
 
 # Turbine 9
-fit1 <- predict.gam(m2, newdata = newdata1, type = "response")
+fit1 <- predict.gam(m2, newdata = newdata1, se.fit = TRUE, type = "response")
 fit1df <- data.frame(newdata1, fit1)
+fit1df <- transform(fit1df, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
 summary(fit1df)
 
 # Turbine 2
-fit1a <- predict.gam(m2, newdata = newdata1a, type = "response")
+fit1a <- predict.gam(m2, newdata = newdata1a, se.fit = TRUE, type = "response")
 fit1adf <- data.frame(newdata1a, fit1a)
+fit1adf <- transform(fit1adf, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
 summary(fit1adf)
 
 # -----------------------------------------------------------------------------
 # Wind and temperature are a range 
 
 # Turbine 9
-fit2 <- predict.gam(m2, newdata = newdata2, type = "response")
+fit2 <- predict.gam(m2, newdata = newdata2, se.fit = TRUE, type = "response")
 fit2df <- data.frame(newdata2, fit2)
+fit2df <- transform(fit2df, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
 summary(fit2df)
 
 # Turbine 2
-fit2a <- predict.gam(m2, newdata = newdata2a, type = "response")
+fit2a <- predict.gam(m2, newdata = newdata2a, se.fit = TRUE, type = "response")
 fit2adf <- data.frame(newdata2a, fit2a)
+fit2adf <- transform(fit2adf, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
 summary(fit2adf)
 
 ```
@@ -524,14 +605,27 @@ summary(fit2adf)
 ```{r}
 
 # Turbine 9
-fit1df %>% ggplot(aes(x=jnight, y=fit1)) +
-  geom_line() + facet_wrap(~Habitat) + ggtitle("Turbine 9")
+fit1df %>% ggplot(aes(x=jnight, y=fit)) +
+  geom_line() + facet_wrap(~Habitat) + ggtitle("Turbine 9") +
+  geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5)
+
+
+fit1df %>% ggplot(aes(x=jnight, y=fit)) +
+  geom_line(aes(colour = Habitat)) + ggtitle("Turbine 9") +
+  geom_ribbon(aes(ymin = lower, ymax = upper, color = Habitat), fill = 'grey', alpha = 0.5)
 
 # -----------------------------------------------------------------------------
 
 # Turbine 2
-fit1adf %>% ggplot(aes(x=jnight, y=fit1a)) +
-  geom_line() + facet_wrap(~Habitat) + ggtitle ("Turbine 2")
+fit1adf %>% ggplot(aes(x=jnight, y=fit)) +
+   geom_line() + facet_wrap(~Habitat) + ggtitle ("Turbine 2") +
+   geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5)
+
+
+fit1adf %>% ggplot(aes(x=jnight, y=fit)) +
+  geom_line(aes(colour = Habitat)) + ggtitle ("Turbine 2") +
+  geom_ribbon(aes(ymin = lower, ymax = upper, color = Habitat), fill = 'grey', alpha = 0.5)
+
 
 ## Add confidence intervals, clean up the background 
 ```
@@ -543,19 +637,19 @@ fit1adf %>% ggplot(aes(x=jnight, y=fit1a)) +
 # Using colored points to represent average nightly wind speeds and temperatures... perhaps there is a more meaningful way to represent this. 
 
 # Turbine 9 - wind 
-fit2df %>% ggplot(aes(x=jnight, y=fit2)) +
+fit2df %>% ggplot(aes(x=jnight, y=fit)) +
   geom_point(aes(color = wind_mean)) + ggtitle("Turbine 9")
 
 # Turbine 9 - temp 
-fit2df %>% ggplot(aes(x=jnight, y=fit2)) +
+fit2df %>% ggplot(aes(x=jnight, y=fit)) +
   geom_point(aes(color = temp_mean)) + ggtitle("Turbine 9")
 
 # See what this looks like for bat pass > 0 
 # Turbine 9 - temp 
-fit2df %>% dplyr::filter(fit2 > 10) %>%  ggplot(aes(x=jnight, y=fit2)) +
+fit2df %>% dplyr::filter(fit > 10) %>%  ggplot(aes(x=jnight, y=fit)) +
   geom_point(aes(color = temp_mean)) + ggtitle("Turbine 9")
 
-fit2df %>% ggplot(aes(x=jnight, y=fit2)) +
+fit2df %>% ggplot(aes(x=jnight, y=fit)) +
   geom_point(aes(color = temp_mean)) + ylim(c(10,150)) + ggtitle("Turbine 9")
 
 ## I want to try and make this figure but make it a line plot with predictions for a series of temperatures... .
@@ -563,38 +657,114 @@ fit2df %>% ggplot(aes(x=jnight, y=fit2)) +
 # -----------------------------------------------------------------------------
 
 # Turbine 2 - wind
-fit2adf %>% ggplot(aes(x=jnight, y=fit2a)) +
+fit2adf %>% ggplot(aes(x=jnight, y=fit)) +
   geom_point(aes(color = wind_mean))  + ggtitle ("Turbine 2")
 
 # Turbine 2 - temp 
-fit2adf %>% ggplot(aes(x=jnight, y=fit2a)) +
+fit2adf %>% ggplot(aes(x=jnight, y=fit)) +
   geom_point(aes(color = temp_mean))  + ggtitle ("Turbine 2")
 
 # -----------------------------------------------------------------------------
 
 # Temp is the response variable 
 # Turbine 9
-fit2df %>% ggplot(aes(x=temp_mean, y=fit2)) +
+fit2df %>% ggplot(aes(x=temp_mean, y=fit)) +
   geom_point() + ggtitle("Turbine 9")
 
 # Turbine 2
-fit2adf %>% ggplot(aes(x=temp_mean, y=fit2a)) +
+fit2adf %>% ggplot(aes(x=temp_mean, y=fit)) +
   geom_point()  + ggtitle ("Turbine 2")
 
 
 # Wind is the response variable 
 # Turbine 9
-fit2df %>% ggplot(aes(x=wind_mean, y=fit2)) +
+fit2df %>% ggplot(aes(x=wind_mean, y=fit)) +
   geom_point() + ggtitle("Turbine 9")
 
 # Turbine 2
-fit2adf %>% ggplot(aes(x=wind_mean, y=fit2a)) +
+fit2adf %>% ggplot(aes(x=wind_mean, y=fit)) +
   geom_point()  + ggtitle ("Turbine 2")
 
 ## These last few plots are a bit more helpful. 
 
 ```
 
+--------------------------------------------------------------------------------
+## Katrine's suggestion/code for visualizing different wind speeds and temperatures
+### count data predictions
+```{r}
+# For plotting temp 
+
+newdata_temp<- expand.grid(temp_mean = c(4, 10, 16, 20),
+                          wind_mean = seq(min(df$wind_mean), max(df$wind_mean), length = 300),
+                          Habitat = levels(df$Habitat),
+                          Locality = "Turbine9",
+                          jnight = 212)  
+
+
+# Turbine 9, fewer wind and temp values 
+fit_temp <- predict.gam(m2, newdata = newdata_temp, se.fit=TRUE, type = "response")
+fit_temp_df <- data.frame(newdata_temp, fit_temp)
+fit_temp_df <- transform(fit_temp_df, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
+summary(fit_temp_df)
+
+# Plotting temp at various wind speeds 
+new_labels <- c("4" = "temp 4", "10" = "temp 10", "16" = "temp 16", "20" = "temp 20")
+# Using binary response model, turbine 9 predictions 
+plt1 <- fit_temp_df %>% 
+  ggplot( aes(x=wind_mean, y = fit, group = factor(temp_mean))) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5) +
+  geom_line() + facet_wrap(~ temp_mean, scales ='fixed', labeller = labeller(temp_mean = new_labels)) +
+  labs(x = "Average wind speed m/s", y ="Proportion of hours per night with batpass>0")
+plt1
+
+### a slight improvement on the dot plots 
+plt1x <- fit_temp_df %>% 
+  ggplot( aes(x=wind_mean, y = fit, group = factor(temp_mean))) +
+  geom_ribbon(aes(ymin = lower, ymax = upper, color = temp_mean), fill = 'grey', alpha = 0.5) +
+  geom_line(aes(color = temp_mean)) +
+  labs(x = "Average wind speed m/s", y ="Proportion of hours per night with batpass>0")
+plt1x
+
+## ----------------------------------------------------------------------------
+
+## For plotting wind 
+summary(df$temp_mean)
+
+# Turbine 9, fewer temp and wind variables
+newdata_wind<- expand.grid(temp_mean = seq(min (df$temp_mean), max (df$temp_mean), length = 300),
+                          wind_mean = c(2, 8, 12, 16),
+                          Habitat = levels(df$Habitat),
+                          Locality = "Turbine9",
+                          jnight = 212) 
+
+
+# Turbine 9, fewer wind and temp values 
+fit_wind <- predict.gam(m2, newdata = newdata_wind, se.fit=TRUE, type = "response")
+fit_wind_df <- data.frame(newdata_wind, fit_wind)
+fit_wind_df <- transform(fit_wind_df, upper = fit + (2*se.fit), lower = fit-(2*se.fit))
+summary(fit_wind_df)
+
+
+## Plotting wind speeds at various temperatures 
+
+new_labels <- c("2" = "wind 2 m/s", "8" = "wind 8 m/s", "12" = "wind 12 /s", "16" = "wind 16 m/s")
+
+# Using binary response model, turbine 9 predictions 
+plt2 <- fit_wind_df %>% 
+  ggplot(aes(x=temp_mean, y = fit, group = factor(wind_mean)), fill = 'grey', alpha = 0.5) +
+  geom_line() + facet_wrap(~ wind_mean, scales ='fixed', labeller = labeller(wind_mean = new_labels)) +
+  labs(x = "Average temperature", y ="Proportion of hours per night with batpass>0")
+plt2
+
+
+```
+
+## For knitting
+```{r}
+setwd(output_today) # knit the document 
+getwd()
+```
 
 --------------------------------------------------------------------------------
 Only for the sake of testing - use a similar model that does not have an interaction between jnight and habitat to see if the results are similar. 
