@@ -345,8 +345,9 @@ summary(fit1adf)
 ```{r}
 
 # Turbine 9
-fit1df %>% ggplot(aes(x=jnight, y=fit)) +
-  geom_line() + facet_wrap(~Habitat) + ggtitle("Turbine 9") +
+plot1 <- 
+  fit1df %>% ggplot(aes(x=jnight, y=fit)) +
+  geom_line() + facet_wrap(~Habitat) + ggtitle("Turbine 9, LRE feeding, binary model") +
   geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5)
 
 
@@ -633,8 +634,9 @@ summary(fit1adf)
 ```{r}
 
 # Turbine 9
-fit1df %>% ggplot(aes(x=jnight, y=fit)) +
-  geom_line() + facet_wrap(~Habitat) + ggtitle("Turbine 9") +
+plot2 <- 
+  fit1df %>% ggplot(aes(x=jnight, y=fit)) +
+  geom_line() + facet_wrap(~Habitat) + ggtitle("Turbine 9, LRE commuting, binary model") +
   geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5)
 
 
@@ -930,8 +932,9 @@ summary(fit1adf)
 ```{r}
 
 # Turbine 9
-fit1df %>% ggplot(aes(x=jnight, y=fit)) +
-  geom_line() + facet_wrap(~Habitat) + ggtitle("Turbine 9") +
+plot3 <-
+  fit1df %>% ggplot(aes(x=jnight, y=fit)) +
+  geom_line() + facet_wrap(~Habitat) + ggtitle("Turbine 9, SRE feeding, binary model") +
   geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5)
 
 
@@ -1218,8 +1221,9 @@ summary(fit1adf)
 ```{r}
 
 # Turbine 9
-fit1df %>% ggplot(aes(x=jnight, y=fit)) +
-  geom_line() + facet_wrap(~Habitat) + ggtitle("Turbine 9") +
+plot4 <- 
+  fit1df %>% ggplot(aes(x=jnight, y=fit)) +
+  geom_line() + facet_wrap(~Habitat) + ggtitle("Turbine 9, SRE commuting, binary model") +
   geom_ribbon(aes(ymin = lower, ymax = upper), fill = 'grey', alpha = 0.5)
 
 
@@ -1386,6 +1390,9 @@ Can see more variation in bat activity between the habitats than in the binary r
 
 # Rough sketch of rinal results 
 ```{r}
+
+library(cowplot)
+plot_grid(plot1, plot2, plot3, plot4)
 
 ```
 
