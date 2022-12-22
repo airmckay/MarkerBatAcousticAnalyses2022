@@ -88,10 +88,14 @@ output <- "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/2. Mar
 dir.name <- str_c(output,"/", file.name, "_", todays_date)
  dir.name
 # 
-# dir.create(dir.name) # be careful not to run over an already created directory 
+ dir.create(dir.name) # be careful not to run over an already created directory 
 
 output_today <- dir.name
+
+setwd(output_today)
 #test
+
+getwd()
 ```
 
 # Make some pretty tables with the unaggregated dataset 
@@ -161,7 +165,7 @@ bats_nights_sum1 <- left_join(bats_nights_sum, bat_sitemap)
 summary(bats_nights_sum1)
 summary(bats_nights_sum1$Site)
 
-#write.csv(bats_nights_sum1, file.path(output_today("Outputs_nightaggregated/bat pass aggregated by night wout zeronights.csv")) 
+#write.csv(bats_nights_sum1, "bat pass aggregated by night wout zeronights.csv")
 
 ################################################
 # Insert zero activity nights
@@ -233,7 +237,7 @@ summary(nbats2)
 nbats3 <- left_join(nbats2, bat_sitemap) 
 summary(nbats3)
 
-#write.csv(nbats3, file.path(output_today,"nightlyaggregatedMarker2020_totalbats_zeroinserted.csv")) 
+#write.csv(nbats3, "nightlyaggregatedMarker2020_totalbats_zeroinserted.csv") 
 
 ```
 
@@ -262,8 +266,8 @@ summary(bats5)
 head(bats5)
 tail(bats5)
 
-# write.csv(bats5, file.path(
-#   output_today,"nightlyaggregatedMarker2020_totalbats_zeroinserted_weather_binary.csv")) 
+# write.csv(bats5, "nightlyaggregatedMarker2020_totalbats_zeroinserted_weather_binary.csv")
+
 
 # last rounds of housekeeping
 
@@ -311,14 +315,14 @@ summary(df2C) # is also only ones or zeros... why apply this to the binary varia
 sum(df2C$Batpass_sum)
 # 19438 we have the correct number of bat passes so this looks good! 
 
-#write.csv(df2C, file.path(output_today, "totalbatpass_summarytable_withbinary_batpass_night_aggregated.csv")) 
+#write.csv(df2C,  "totalbatpass_summarytable_withbinary_batpass_night_aggregated.csv")
 
 # Add back the other site data 
 
 df3C <- left_join(df2C, bat_sitemap)
 summary(df3C)
 
-#write.csv(df3C, file.path(output_today,"totalbatpass_summarytable_withbinary_batpass_night_aggregated_site data.csv"))
+#write.csv(df3C, "totalbatpass_summarytable_withbinary_batpass_night_aggregated_site data.csv")
 
 ```
 
@@ -459,7 +463,8 @@ summary(bats_gb_nights_sum1$Site)
 # Met45 Met95   N02   N04   N08   N09   N10   N11   N14   P02   P04   P08   P09   P10   P11   P14 
 #    68    20   140   132   142   167   181   138   158   134   117   114   185   162   174   139 
 
-#write.csv(bats_gb_nights_sum1, file.path(output_today, "bat pass aggregated by night wout zeronights_behavior and guild.csv")) 
+#write.csv(bats_gb_nights_sum1, "bat pass aggregated by night wout zeronights_behavior and guild.csv")
+
 
 ################################################
 # Insert zero activity nights
@@ -534,7 +539,7 @@ sum(nbats2$batpass)
 nbats3 <- left_join(nbats2, bat_sitemap) 
 summary(nbats3) # 11412 obs of 8 variables 
 
-#write.csv(nbats3, file.path(output_today, "nightlyaggregatedMarker2020_totalbats_zeroinserted_behavior and guild.csv")) 
+#write.csv(nbats3, "nightlyaggregatedMarker2020_totalbats_zeroinserted_behavior and guild.csv")
 
 ```
 
@@ -563,7 +568,7 @@ head(bats5)
 tail(bats5)
 
 
-#write.csv(bats5, file.path(output_today, "nightlyaggregated_zeros_binary_behavior and guild.csv")) 
+#write.csv(bats5,"nightlyaggregated_zeros_binary_behavior and guild.csv")
 
 # last rounds of housekeeping
 
@@ -610,14 +615,14 @@ summary(df2C) # is also only ones or zeros... why apply this to the binary varia
 sum(df2C$Batpass_sum)
 # 19438 we have the correct number of bat passes so this looks good! 
 
-#write.csv(df2C, file.path(output_today, "aggregated night behavior guild_summarytable_withbinary_batpass.csv")) 
+#write.csv(df2C, "aggregated night behavior guild_summarytable_withbinary_batpass.csv")
 
 # Add back the other site data 
 
 df3C <- left_join(df2C, bat_sitemap)
 head(df3C)
 
-#write.csv(df3C, file.path(output_today,"guild_behavior_summarytable_site.csv")) 
+#write.csv(df3C, "guild_behavior_summarytable_site.csv")
 
 ```
 
@@ -641,7 +646,29 @@ p <- ggplot(data=df3C[df3C$Batpass_sum>0,]) +
 print(p)
 dev.off()
 
-p
+p 
+
+### MAKE SUPPLEMENTARY MATERIALS MAP### 
+# levels(df3C$Site)
+# 
+# leftside <- df3C %>% filter(Site %in% c("P02",   "P04",   "P08",
+#                                         "P09",  "P10",   "P11", "P14", "Met45" )) %>% droplevels()
+# 
+# rightside <- df3C %>% filter(Site %in% c("N02",   "N04",   "N08",
+#                                         "N09",  "N10",   "N11", "N14", "Met90" )) %>% droplevels()
+# 
+# pl <- ggplot(data=leftside[leftside$Batpass_sum>0,]) +
+#   geom_point(data=leftside, aes(x=night,y=guild),shape=19,color="grey") +
+#   geom_point(aes(x=night,y=guild),shape=19,color="black") +
+#   facet_wrap(~Site, nrow = 8)
+# pl
+# 
+# pr <- ggplot(data=rightside[rightside$Batpass_sum>0,]) +
+#   geom_point(data=rightside, aes(x=night,y=guild),shape=19,color="grey") +
+#   geom_count(aes(x=night,y=guild),shape=19,color="black") +
+#   facet_wrap(~Site, nrow = 8)
+# pr
+
 ```
 
 ```{r}
@@ -655,7 +682,7 @@ df1 <- df3C %>%
 
 summary(df1) # 4866 obs of 18 vars
 
-#write.csv(df1, file.path(output_today, "guild_behavior_batpass_summarytable_trimmed MRE social and met tower.csv")) 
+#write.csv(df1, "guild_behavior_batpass_summarytable_trimmed MRE social and met tower.csv") 
 
 ```
 

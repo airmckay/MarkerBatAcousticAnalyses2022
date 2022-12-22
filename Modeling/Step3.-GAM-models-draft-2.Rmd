@@ -7,6 +7,9 @@ date: "2022-11-28"
 editor_options: 
   chunk_output_type: console
 ---
+
+## HEADS UP! 
+This has not been rerun with the slightly cleaner version of the data assembled on 22.12.2022
 # **Main objectives**
 
 Model total nightly bat activity for all ground level detectors 

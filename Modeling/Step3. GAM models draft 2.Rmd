@@ -172,7 +172,7 @@ summary(bats_tot)
 
 ```
 
-Fitting he full model (I recommend not making the model more complex than this)
+Fitting the full model (I recommend not making the model more complex than this)
 Will have to do trial-and-error to get the k right
 
 ```{r}

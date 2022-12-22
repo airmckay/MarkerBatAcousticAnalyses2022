@@ -79,7 +79,10 @@ dir.name <- str_c(output,"/", file.name, "_", todays_date)
  dir.create(dir.name)
 
 output_today <- dir.name 
-# test test test
+
+setwd(output_today)
+getwd()
+
 ```
 
 
@@ -115,6 +118,21 @@ manual_output2 <- manual_output1 %>% filter(IN.FILE != "S4U10067_20200716_232445
 
 manual_output3 <- full_join(manual_output2, fixthis1) # added back one observation 
 # no more NAs in the MANUAL.ID column! 
+
+## This file S4U08483_20200808_002648.wav was tagged as a PAUR feeding buzz, but PAUR rarely show feeding buzzes. I revisited this file to check it and it is just a commuting PAUR that is perhaps approaching something, but we can't call that a feeding buzz. I need to change this to a commuting pass. 
+
+fixthis2 <- subset(manual_output1, IN.FILE == "S4U08483_20200808_002648_000.wav")
+fixthis2$MANUAL.ID  <- gsub(".B", "", fixthis2$MANUAL.ID)
+
+manual_output3x <- manual_output3 %>% filter(IN.FILE != "S4U08483_20200808_002648_000.wav")
+
+manual_output3xx <- full_join(manual_output3x, fixthis2)
+
+## Had to make this correction unfortunately AFTER I had already prepared the whole dataset, so I am going to reuse the name manual_output3 to keep this simple... 
+
+manual_output3 <- manual_output3xx
+
+## More cleaning 
 
 # notes from how this dataset was previously wrangled in excel:
 # change NoID to NoID1
@@ -175,6 +193,8 @@ manual_output4 <- manual_output3 %>%
          DATE.12, TIME.12, HOUR.12, 
          AUTO.ID., PULSES, MATCH.RATIO, 
          MANUAL.ID, m_id18) #1927 obs of 15 vars
+
+summary(manual_output4)
 
 #write.csv(manual_output4, file.path(output_today, "Marker_manualIDscleanred_preparsed.csv")) 
 
@@ -263,7 +283,7 @@ summary(manual_output8$manual_pass_clean9) # WOOOOHOOOOO
 manual_output8$behavior <- as.factor(manual_output8$behavior)
 summary(manual_output8$behavior)
 # Commuting   Feeding    Social 
-#     14876      4057       550 
+#     14877     4057       550 
 
 manual_output9 <- manual_output8 %>% select(INDIR, OUTDIR, IN.FILE, DURATION, 
          DATE, TIME, HOUR, 
@@ -376,7 +396,8 @@ summary(manual_output15$Facility)
 summary(manual_output15)
 getwd()
 
-#write.csv(manual_output15, file.path(output_today,"MarkerCleanedCombinedManualIDs.csv")) 
+#write.csv(manual_output15, file.path(output_today,"MarkerCleanedCombinedManualIDs.csv"))
+#write.csv(manual_output15, file.path(output_today,"MarkerManual_cleaned_manualid_guild_sitenames.csv"))
 
 
 ```
