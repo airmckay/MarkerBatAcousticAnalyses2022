@@ -254,11 +254,22 @@ manual_output7 <- manual_output6 %>%
     str_detect(manual_pass_clean1,".B.S") ~ "Feeding",
     str_detect(manual_pass_clean1, ".S.B") ~ "Feeding",
     TRUE ~ "Commuting"
-  ))
+  )) # Somehow, all of the BABA passes were defined as Feeding when this happened - all of these passes were just commuting so I need to fix that. 
 
+
+manual_output8 <-manual_output7 %>% 
+  mutate(behavior = case_when(
+  MANUAL.ID == "SRE_BABA" ~ "Commuting", 
+  TRUE ~ as.character(behavior))) 
+
+## 
+# manual_output8$behavior <- as.factor(manual_output8$behavior) 
+#   summary(manual_output8$behavior)
+  # Commuting   Feeding    Social 
+  #  14888      4045       550 
+  
 # remove all the behavior tags in the manual_pass_clean1 column so it is only manual ids
 
-manual_output8 <-manual_output7 
 manual_output8$manual_pass_clean2 <- gsub(".B", "",manual_output8$manual_pass_clean1)
 manual_output8$manual_pass_clean3 <- gsub(".S", "",manual_output8$manual_pass_clean2)
 
@@ -283,7 +294,7 @@ summary(manual_output8$manual_pass_clean9) # WOOOOHOOOOO
 manual_output8$behavior <- as.factor(manual_output8$behavior)
 summary(manual_output8$behavior)
 # Commuting   Feeding    Social 
-#     14877     4057       550 
+#     14888      4045       550 
 
 manual_output9 <- manual_output8 %>% select(INDIR, OUTDIR, IN.FILE, DURATION, 
          DATE, TIME, HOUR, 
