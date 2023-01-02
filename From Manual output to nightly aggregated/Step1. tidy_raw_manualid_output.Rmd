@@ -256,6 +256,8 @@ manual_output7 <- manual_output6 %>%
     TRUE ~ "Commuting"
   )) # Somehow, all of the BABA passes were defined as Feeding when this happened - all of these passes were just commuting so I need to fix that. 
 
+# manual_output7$manual_pass_clean1 <- as.factor(manual_output7$manual_pass_clean1)
+# summary(manual_output7$manual_pass_clean1)
 
 manual_output8 <-manual_output7 %>% 
   mutate(behavior = case_when(
@@ -263,8 +265,8 @@ manual_output8 <-manual_output7 %>%
   TRUE ~ as.character(behavior))) 
 
 ## 
-# manual_output8$behavior <- as.factor(manual_output8$behavior) 
-#   summary(manual_output8$behavior)
+manual_output8$behavior <- as.factor(manual_output8$behavior) 
+   summary(manual_output8$behavior)
   # Commuting   Feeding    Social 
   #  14888      4045       550 
   
@@ -403,6 +405,13 @@ manual_output15 <- manual_output14 %>% mutate(Facility =
 summary(manual_output15$Facility)
 # North South 
 # 6235 13203 
+
+test <- manual_output15 %>% 
+  group_by(guild, behavior) %>% 
+  dplyr::summarise(n = n())
+sum(test$n)
+
+kable(test) %>% kable_minimal()
 
 summary(manual_output15)
 getwd()
