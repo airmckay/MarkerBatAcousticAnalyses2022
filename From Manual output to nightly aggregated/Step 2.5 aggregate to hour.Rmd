@@ -52,6 +52,7 @@ library(kableExtra)
 library(papeR)
 library(skimr)
 library(vtable)
+library(suncalc)
 
 ##########################################################
 #### Import data  ####
@@ -79,14 +80,14 @@ weather.hours <- read_csv(path3) # 93 obs of 8 vars
 
 
 # for Reed
-output <- "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/2. Marker 2019-2020/Marker 2022/SecondDraftAnalyses/Reed/Outputs"
+output <- "C:/Users/April/Desktop/WorkBay1/Marker/Outputs"
 
 # for Katrine 
 #output <- ""
 
 ## 
- file.name <- "Step2.Marker aggregated to night_all bats"
-# asdfas
+ file.name <- "Step2.5 Marker aggregated to hour"
+# 
  todays_date <- Sys.Date()
 # 
 dir.name <- str_c(output,"/", file.name, "_", todays_date)
@@ -97,9 +98,9 @@ dir.name <- str_c(output,"/", file.name, "_", todays_date)
 output_today <- dir.name
 
 setwd(output_today)
-#test
 
 getwd()
+# "C:/Users/April/Desktop/WorkBay1/Marker/Outputs/Step2.5 Marker aggregated to hour_(today's date)"
 ```
 
 # Make some pretty tables with the unaggregated dataset 
@@ -143,7 +144,7 @@ kbl(summarize(bats1., type = "factor", variables = "Habitat"))  %>%  kable_styli
 kbl(summarize(bats1., type = "factor", variables = "Facility"))  %>%  kable_styling()
 
 names(bats1.)
-bats2. <- bats1. %>% select(behavior, guild, Site, Habitat, Locality, Facility, taxa) 
+bats2. <- bats1. %>% select(HOUR.12, HOUR, DATE, DATE.12, behavior, guild, Site, Habitat, Locality, Facility, taxa) 
 
 st(bats2.) # summary table of all the relevant factor levels across the whole dataset
 
@@ -155,19 +156,37 @@ st(bats2.) # summary table of all the relevant factor levels across the whole da
 ```
 
 
-1. all bat activity aggregated to night per site
+1. all bat activity aggregated to hour per site
 - Insert zeros
 - merge with night aggregated weather data 
 ```{r}
-bats3. <- bats1. %>% mutate(date = as.Date(DATE),
-                           night = as.Date(DATE.12))
 
+# create night-hour column
+bats1.$nighthour <- paste(bats1.$DATE.12, " ",bats1.$HOUR.12, ":00", sep= "")
+bats1.$datehour <- paste(bats1.$DATE, " ",bats1.$HOUR, ":00", sep= "")
+bats3. <- bats1. %>% mutate(date = as.Date(DATE),
+                           night = as.Date(DATE.12),
+                           nighthour = ymd_hm(nighthour),
+                           datehour = ymd_hm(datehour))   
+
+# make locations maps 
 bat_sitemap <- bats1. %>% select(Site, Habitat, Facility, Locality) %>% distinct() 
 
-bats_nights_sum <- bats3. %>% group_by(Site, night) %>% dplyr::summarize(batpass = sum(n())) 
-bats_nights_sum1 <- left_join(bats_nights_sum, bat_sitemap)
-summary(bats_nights_sum1)
-summary(bats_nights_sum1$Site)
+bats_hours_sum <- bats3. %>% group_by(Site, datehour) %>% dplyr::summarize(batpass = sum(n())) 
+bats_hours_sum1 <- left_join(bats_hours_sum, bat_sitemap)
+summary(bats_hours_sum1)
+summary(bats_hours_sum1$Site)
+dat <- bats_hours_sum1 %>% mutate(date = as.Date(datehour)) 
+summary(dat)
+summary(dat$Site)
+
+timemap <- bats1. %>% select(Site, datehour, nighthour, DATE, DATE.12, HOUR, HOUR.12) %>% distinct() # you will want this later... 
+timemap$datehour <- ymd_hm(timemap$datehour)
+timemap$nighthour <- ymd_hm(timemap$nighthour)
+
+## The number of hours with recorded bat passes per site 
+# Met45 Met95   N02   N04   N08   N09   N10   N11   N14   P02   P04   P08   P09   P10   P11   P14 
+#  127    24   221   157   199   232   259   192   235   203   187   166   257   245   259   219 
 
 #write.csv(bats_nights_sum1, "bat pass aggregated by night wout zeronights.csv")
 
@@ -180,514 +199,134 @@ active.nights$Site <- gsub("C", "N", active.nights$Site)
 active.nights$Site <- gsub("MetA", "Met45", active.nights$Site)
 active.nights$Site <- gsub("MetB", "Met95", active.nights$Site)
 active.nights$Site <- as.factor(active.nights$Site)
-active.nights$night <- as.IDate(active.nights$night, '%d.%m.%Y')
+active.nights$night <- as.Date(active.nights$night, '%d.%m.%Y')
 active.nights$night <- as.Date(active.nights$night)
 summary(active.nights)
 
-dat <- bats_nights_sum1
-summary(dat)
-summary(dat$Site)
-#---- ADDING MISSING DAYS 
+#---- ADDING MISSING DAYS AND HOURS
 
 # adjust dataset to include nights when detectors were active but no data was collected. 
 
 head(active.nights)
 summary(active.nights$Site)
 
-nights <- unique(active.nights$night) # 91 unique nights of survey 
-
-temp<-expand.grid(Site = unique(dat$Site),  night = nights) #----expanded data
-temp$night <- as.character(temp$night)
-temp$night <-  as.Date(temp$night)
-
-active.nights$Site <- as.factor(active.nights$Site)
-active.nights$night <-  as.Date(active.nights$night)
-
-str(temp)
-str(active.nights)
-
-temp2<-merge(temp, active.nights) # 811 obs of 3 variables 
-
-summary(temp2$Site) # number of monitoring nights per site 
-# Met45 Met95   N02   N04   N08   N09   N10   N11   N14   P02   P04   P08   P09   P10   P11   P14 
-#    70    70    59    44    60    48    60    60    60    60    60    60    60    60    60    60 
-
-temp3<-merge(temp2,dat,all.x=TRUE) # 811 obs of 6 vars 
-summary(temp3$Site)# number of nights per guild per site plot 
-# Met45 Met95   N02   N04   N08   N09   N10   N11   N14   P02   P04   P08   P09   P10   P11   P14 
-#    70    70    59    44    60    48    60    60    60    60    60    60    60    60    60    60 
-
-## Compare to the original dataset
-summary(dat$Site)
-# Met45 Met95   N02   N04   N08   N09   N10   N11   N14   P02   P04   P08   P09   P10   P11   P14 
-#    55    17    54    41    49    46    50    55    51    47    52    49    55    49    54    54 
-
-summary(temp3) # 173 zero nights introduced 
+nights <- unique(active.nights$night) # 91 unique nights of survey
 
 
-# reformat factor columns and then replace NA bat passes with zeros 
-nbats1 <- temp3 
+# restrict to only between one hour before sunset and one hour after sunrise 
+## Recalculate day_length 
 
-# batpasses converted to zeros but NAs pop up in the factor columns
-# fix Habitat and Facility 
+# manually add 09.30 
+thenights <- as.data.frame(active.nights$night %>% unique())
+colnames(thenights)[1] = "date"
+day0930 <- as.data.frame(as.Date("2020-09-30")) 
+colnames(day0930 )[1] = "date"
+thenights1 <- full_join(thenights, day0930)
+# Will have to use night as a proxy for date
 
-nbats2 <- nbats1 %>% select(-c(active.night, Habitat, Facility, Locality)) 
-summary(nbats2)  
 
-#Replace NAs with zeros 
-nbats2[is.na(nbats2)] <- 0 
-summary(nbats2)
+#Use location of T-08
+photoperiod <- getSunlightTimes(
+  date = thenights1$date, 
+  keep = c("sunrise", "sunset"),
+  lat = 59.49964,
+  lon = 11.73199, 
+  tz = "CET")
 
-nbats3 <- left_join(nbats2, bat_sitemap) 
-summary(nbats3)
+photoperiod1 <- photoperiod %>%
+  mutate(
+    date = as.POSIXct(date),
+    day_length = as.numeric(sunset - sunrise)) %>% distinct()
 
-#write.csv(nbats3, "nightlyaggregatedMarker2020_totalbats_zeroinserted.csv") 
+photoperiod2 <- photoperiod1 %>% mutate(night = as.Date(date)) %>% select(-date) %>% distinct()
+summary(photoperiod2)
+#write.csv(photoperiod2, "day_length for active.nights Marker2020.csv")
+
+ str(photoperiod1)
+#  $ date      : POSIXct, format: "2020-07-01 02:00:00" "2020-07-02 02:00:00" "2020-07-03 02:00:00" "2020-07-04 02:00:00" ...
+#  $ lat       : num  59.5 59.5 59.5 59.5 59.5 ...
+#  $ lon       : num  11.7 11.7 11.7 11.7 11.7 ...
+#  $ sunrise   : POSIXct, format: "2020-07-01 04:02:08" "2020-07-02 04:03:13" "2020-07-03 04:04:22" "2020-07-04 04:05:35" ...
+#  $ sunset    : POSIXct, format: "2020-07-01 22:34:05" "2020-07-02 22:33:22" "2020-07-03 22:32:34" "2020-07-04 22:31:41" ...
+#  $ day_length: num  18.5 18.5 18.5 18.4 18.4 ...
+# 
+
+# Calculate the active hours for each site 
+# Make 24 hours for each active.night
+
+hours.expand <- expand.grid(night = active.nights$night, hour = sprintf("%02d:00", 0:23)) 
+active.nights1 <- active.nights %>% select(c(Site, night)) 
+hours.expand1 <- left_join(active.nights, hours.expand, by = "night") %>% distinct() 
+hours.expand1$nighthour <- paste(hours.expand1$night, hours.expand1$hour)
+hours.expand1$nighthour <- ymd_hm(hours.expand1$nighthour)
+hours.expand2 <- hours.expand1 %>% select(Site, nighthour) %>% distinct()
+
+# 22824 obs = 951 detector nights * 24 hours - good! 
+str(hours.expand1)
+
+#write.csv(hours.expand1, "active.nighthours.Marker2020.csv")
+
+# merge the bats dataset to with the photoperiod dataset 
+photoperiod1$date <- as.Date(photoperiod1$date)
+dat1 <- left_join(dat, timemap) %>% select(-c(Habitat, Locality, Facility, datehour, date, DATE, DATE.12, HOUR, HOUR.12)) %>% distinct()
+summary(dat1)
+str(dat1)
+str(hours.expand2)
+
+dat2 <- merge(dat1, hours.expand2, all.y = TRUE) %>% distinct()
+summary(dat2) # 19642  NAs introduced 
+#22824 obs 
+
+dat3 <- dat2 %>% mutate_at(3, ~replace_na(.,0)) 
+sum(dat3$batpass) # 19438 - good! 
+
+# add back date and datehour then photoperiods/sunset data
+dat4 <- dat3 %>% mutate(datehour = nighthour + 12*60*60,
+                        date = as.Date(datehour))
+
+dat5 <- left_join(dat4, photoperiod1) %>% distinct()
+
+dat6 <- dat5 %>% mutate(starttime = sunset - hours(3), endtime = sunrise + hours(3)) 
+summary(dat6) 
+
+dat7<- dat6%>%  
+  mutate(Keep = case_when(
+  datehour >= starttime | datehour <= endtime ~ "Yes", TRUE ~ "No"
+))
+
+dat7$Keep <- as.factor(dat7$Keep)
+summary(dat7) # 8981 observations that do not fit. 
+
+#Do any have bat passes? 
+test <- dat7 %>% filter(Keep == "No")
+sum(test$batpass) # would lose 17 bat passes if I kept it at 2 hours... 3 hours gives us more zeros but keeps all bat passes.
+
+dat8<- dat7 %>% filter(Keep == "Yes") %>% select(-c(Keep)) %>% droplevels()
+summary(dat8)
+
+# 13843 detector hours for total bat passes 
+
+#write.csv(dat8, "hourlyaggregatedMarker2020_totalbats_zeroinserted.csv") 
 
 ```
 
 # Aggregate the hourly weather datasets to nightly 
 ```{r}
-head(weather.nights)
+head(weather.hours)
 
-nbats4 <- left_join(nbats3, weather.nights, by = "night")
+dat9 <- left_join(dat8, weather.hours, by = "nighthour") #%>% select(- ...1)
 
-summary(nbats4)
+summary(dat9)
 
-# right now I do not have UTM or day length included but I can add those here later. 
+sum(nbats4$batpass) # 19438
+# 40 NA observations added - only one bat pass in all of these included hours with bat passes (1 pass from N08)
+# These are time slots when no weather data is available for inserted zero hours at a handful of sites. 
+# I will drop these
 
+dat10 <- drop_na(dat9) 
+summary(dat10)
+sum(dat10$batpass) # 19437
+#write.csv(dat10, "hourlaggregated_totalbats_zeroinserted_weather.csv")
 ```
 
 
-# Make it binary! 
-```{r}
-bats5 <- nbats4 %>% rename(Batpass = batpass)
-bats5$batpass01 <- bats5$Batpass
-names(bats5)
- # [1] "Site"        "night"       "batpass_sum" "Habitat"     "Facility"    "avg_wind"    "min_wind"    "max_wind"   
- # [9] "avg_temp"    "min_temp"    "max_temp"    "batpass01"  
-bats5$batpass01[bats5$batpass01 >1] <- 1
-summary(bats5)
-head(bats5)
-tail(bats5)
-
-# write.csv(bats5, "nightlyaggregatedMarker2020_totalbats_zeroinserted_weather_binary.csv")
-
-
-# last rounds of housekeeping
-
-bats5$wind <- bats5$avg_wind
-bats5$temp <- bats5$avg_temp
-bats5$jnight <- yday(bats5$night)
-
-# Aggregation table 
-# I am keeping the night (as.Date) variable for now because it is easier to recreate jnight from night than the other way around. 
-
-agg_tbl2 <- bats5 %>% group_by(night, Site) %>% 
-  dplyr::summarise(across(c(Batpass, batpass01, wind, temp), list(sum = sum, mean = mean, min = min, max=max, length = length)))
-
-dim(agg_tbl2)
-# 951  22
-head(agg_tbl2)
-tail(agg_tbl2)
-
-#Remove variables that will not be needed
-names(agg_tbl2)
-
-#  [1] "jnight"           "Site"             "Batpass_sum"      "Batpass_mean"     "Batpass_min"      "Batpass_max"     
-#  [7] "Batpass_length"   "batpass01_sum"    "batpass01_mean"   "batpass01_min"    "batpass01_max"    "batpass01_length"
-# [13] "wind_sum"         "wind_mean"        "wind_min"         "wind_max"         "wind_length"      "temp_sum"        
-# [19] "temp_mean"        "temp_min"         "temp_max"         "temp_length"     
-
-
-df2C <- agg_tbl2 %>% select(-c(Batpass_min, Batpass_length, batpass01_mean, batpass01_min, batpass01_max,
-                                wind_sum, wind_length, temp_sum , temp_length ))
-
-dim(df2C) 
-# 951  13
-head(df2C)
-tail(df2C)
-
-
-#Make a proportion variable
-
-df2C$batpass_prop <- df2C$batpass01_sum/df2C$batpass01_length
-
-head(df2C)
-tail(df2C)
-dim(df2C)
-summary(df2C) # is also only ones or zeros... why apply this to the binary variable instead of the bat pass sum? 
-sum(df2C$Batpass_sum)
-# 19438 we have the correct number of bat passes so this looks good! 
-
-#write.csv(df2C,  "totalbatpass_summarytable_withbinary_batpass_night_aggregated.csv")
-
-# Add back the other site data 
-
-df3C <- left_join(df2C, bat_sitemap)
-summary(df3C)
-
-#write.csv(df3C, "totalbatpass_summarytable_withbinary_batpass_night_aggregated_site data.csv")
-
-```
-
-
-### Do some quality control plots 
-
-```{r}
-names(df3C)
-
-#batpass_prop	versus	jnight
-# save plot to file 
-bmp(file.path(output_today,"Habitat_batpass_prop_night.tif"), width = 9, height = 6, units = "in", res = 350)
-
-p <- ggplot()
-p <- p + xlab("night") + ylab("batpassTOTAL_prop")
-p <- p + theme(text = element_text(size = 15))
-p <- p + geom_point(data = df3C, 
-                    aes(x = night, 
-                        y = batpass_prop),
-                    size = 1)
-p <- p + geom_smooth(data = df3C, 
-                     aes(x = night, 
-                         y = batpass_prop))
-
-p <- p + facet_grid( ~ Habitat)
-
-
-print(p)
-dev.off()
-
- 
-
-#batpass_prop	versus	temp_max			
-# save plot to file 
-bmp(file.path(output_today, "Habitat_batpass_prop_temp_max.tif"), width = 9, height = 6, units = "in", res = 350)
-
-p <- ggplot()
-p <- p + xlab("temp_max") + ylab("batpassTOTAL_prop")
-p <- p + theme(text = element_text(size = 15))
-p <- p + geom_point(data = df3C, 
-                    aes(x = temp_max, 
-                        y = batpass_prop),
-                    size = 1)
-p <- p + geom_smooth(data = df3C, 
-                     aes(x = temp_max, 
-                         y = batpass_prop))
-
-p <- p + facet_grid( ~ Habitat)
-
-
-print(p)
-dev.off()
-
-#batpass_prop	versus	temp_mean			
-# save plot to file 
-bmp(file.path(output_today, "Habitat_batpass_prop_temp_mean.tif"), width = 9, height = 6, units = "in", res = 350)
-
-p <- ggplot()
-p <- p + xlab("temp_mean") + ylab("batpassTOTAL_prop")
-p <- p + theme(text = element_text(size = 15))
-p <- p + geom_point(data = df3C, 
-                    aes(x = temp_mean, 
-                        y = batpass_prop),
-                    size = 1)
-p <- p + geom_smooth(data = df3C, 
-                     aes(x = temp_mean, 
-                         y = batpass_prop))
-
-p <- p + facet_grid( ~ Habitat)
-
-
-print(p)
-dev.off()
-
-#batpass_prop	versus	wind_max			
-# save plot to file 
-bmp(file.path(output_today, "Habitat_batpass_prop_wind_max.tif"), width = 9, height = 6, units = "in", res = 350)
-
-p <- ggplot()
-p <- p + xlab("wind_max") + ylab("batpassTOTAL_prop")
-p <- p + theme(text = element_text(size = 15))
-p <- p + geom_point(data = df3C, 
-                    aes(x = wind_max, 
-                        y = batpass_prop),
-                    size = 1)
-p <- p + geom_smooth(data = df3C, 
-                     aes(x = wind_max, 
-                         y = batpass_prop))
-
-p <- p + facet_grid( ~ Habitat)
-
-
-print(p)
-dev.off()
-
-#batpass_prop	versus	wind_mean			
-# save plot to file 
-bmp(file.path(output_today, "Habitat_batpass_prop_wind_mean.tif"), width = 9, height = 6, units = "in", res = 350)
-
-p <- ggplot()
-p <- p + xlab("wind_mean") + ylab("batpassTOTAL_prop")
-p <- p + theme(text = element_text(size = 15))
-p <- p + geom_point(data = df3C, 
-                    aes(x = wind_mean, 
-                        y = batpass_prop),
-                    size = 1)
-p <- p + geom_smooth(data = df3C, 
-                     aes(x = wind_mean, 
-                         y = batpass_prop))
-
-p <- p + facet_grid( ~ Habitat)
-
-
-print(p)
-dev.off()
-
-```
-
-###############################################################################
-
-I am going to recycle some names and data objects from above. This is not best practice and I should probably separate this into two separate markdowns later or at least change the names of the objects below but for now I am just going to run with it. 
-
-
-# 2. Aggregated to night by guild and behavior 
-
-```{r}
-# bats3. <- bats1. %>% mutate(date = as.Date(DATE),
-#                            night = as.Date(DATE.12))
-# 
-# bat_sitemap <- bats1. %>% select(Site, Habitat, Facility) %>% distinct() 
-
-bats_gb_nights_sum <- bats3. %>% group_by(Site, night, guild, behavior) %>% dplyr::summarize(batpass = sum(n()))
-summary(bats_gb_nights_sum)
-#bats_gb_nights_sum1 <- left_join(bats_gb_nights_sum, bat_sitemap) # can skip this, the site data will be added back at the end
-bats_gb_nights_sum1 <- bats_gb_nights_sum
-summary(bats_gb_nights_sum1)
-summary(bats_gb_nights_sum1$Site)
-# Met45 Met95   N02   N04   N08   N09   N10   N11   N14   P02   P04   P08   P09   P10   P11   P14 
-#    68    20   140   132   142   167   181   138   158   134   117   114   185   162   174   139 
-
-#write.csv(bats_gb_nights_sum1, "bat pass aggregated by night wout zeronights_behavior and guild.csv")
-
-
-################################################
-# Insert zero activity nights
-################################################
-
-# same active.nights objects as above should work fine! 
-summary(active.nights)
-
-dat <- bats_gb_nights_sum1
-summary(dat)
-names(dat)
-# "Site"     "night"    "guild"    "behavior" "batpass" 
-
-#---- ADDING MISSING DAYS 
-
-# adjust dataset to include nights when detectors were active but no data was collected. 
-
-head(active.nights)
-summary(active.nights$Site)
-
-nights <- unique(active.nights$night) # 91 unique nights of survey 
-
-temp<-expand.grid(Site = unique(dat$Site), 
-                  guild = unique(dat$guild), 
-                  behavior = unique(dat$behavior),  
-                  night = nights) #----expanded data
-
-temp$night <- as.character(temp$night)
-temp$night <-  as.Date(temp$night)
-
-active.nights$Site <- as.factor(active.nights$Site)
-active.nights$night <-  as.Date(active.nights$night)
-
-str(temp)
-str(active.nights)
-
-temp2<-merge(temp, active.nights) # 811 obs of 3 variables 
-
-summary(temp2$Site) # number of monitoring nights per site 
-# Met45 Met95   N02   N04   N08   N09   N10   N11   N14   P02   P04   P08   P09   P10   P11   P14 
-#   840   840   708   528   720   576   720   720   720   720   720   720   720   720   720   720 
-
-temp3<-merge(temp2,dat,all.x=TRUE) # 811 obs of 6 vars 
-summary(temp3$Site)# number of nights per guild per site plot 
-# Met45 Met95   N02   N04   N08   N09   N10   N11   N14   P02   P04   P08   P09   P10   P11   P14 
-#   840   840   708   528   720   576   720   720   720   720   720   720   720   720   720   720 
-
-## Compare to the original dataset
-summary(dat$Site)
-# Met45 Met95   N02   N04   N08   N09   N10   N11   N14   P02   P04   P08   P09   P10   P11   P14 
-#    68    20   140   132   142   167   181   138   158   134   117   114   185   162   174   139 
-
-summary(temp3) # 9241 zero nights/behavior/guilds introduced 
-
-
-# reformat factor columns and then replace NA bat passes with zeros 
-nbats1 <- temp3 
-
-# batpasses converted to zeros but NAs pop up in the factor columns
-# fix Habitat and Facility 
-
-nbats2 <- nbats1 %>% select(-c(active.night)) 
-summary(nbats2)  
-
-#Replace NAs with zeros 
-nbats2[is.na(nbats2)] <- 0 
-summary(nbats2)
-
-sum(nbats2$batpass) 
-# 19438 # good! 
-
-nbats3 <- left_join(nbats2, bat_sitemap) 
-summary(nbats3) # 11412 obs of 8 variables 
-
-#write.csv(nbats3, "nightlyaggregatedMarker2020_totalbats_zeroinserted_behavior and guild.csv")
-
-```
-
-# Aggregate the hourly weather datasets to nightly 
-```{r}
-head(weather.nights)
-
-nbats4 <- left_join(nbats3, weather.nights, by = "night")
-
-summary(nbats4)
-
-# right now I do not have UTM or day length included but I can add those here later. 
-
-```
-
-2. Make it binary! 
-```{r}
-bats5 <- nbats4 %>% rename(Batpass = batpass)
-bats5$batpass01 <- bats5$Batpass
-names(bats5)
- # [1] "Site"        "night"       "batpass_sum" "Habitat"     "Facility"    "avg_wind"    "min_wind"    "max_wind"   
- # [9] "avg_temp"    "min_temp"    "max_temp"    "batpass01"  
-bats5$batpass01[bats5$batpass01 >1] <- 1
-summary(bats5)
-head(bats5)
-tail(bats5)
-
-
-#write.csv(bats5,"nightlyaggregated_zeros_binary_behavior and guild.csv")
-
-# last rounds of housekeeping
-
-bats5$wind <- bats5$avg_wind
-bats5$temp <- bats5$avg_temp
-bats5$jnight <- yday(bats5$night)
-
-# Aggregation table 
-# I am keeping night rather than julian night because it is easy to recreate julian night later but converting julian night back to night is a bit trickier. 
-agg_tbl2 <- bats5 %>% group_by(night, Site, guild, behavior) %>% 
-  dplyr::summarise(across(c(Batpass, batpass01, wind, temp), list(sum = sum, mean = mean, min = min, max=max, length = length)))
-
-dim(agg_tbl2)
-# 11412    24
-head(agg_tbl2)
-tail(agg_tbl2)
-
-#Remove variables that will not be needed
-names(agg_tbl2)
-
-#  [1] "jnight"           "Site"             "guild"            "behavior"         "Batpass_sum"      "Batpass_mean"    
-#  [7] "Batpass_min"      "Batpass_max"      "Batpass_length"   "batpass01_sum"    "batpass01_mean"   "batpass01_min"   
-# [13] "batpass01_max"    "batpass01_length" "wind_sum"         "wind_mean"        "wind_min"         "wind_max"        
-# [19] "wind_length"      "temp_sum"         "temp_mean"        "temp_min"         "temp_max"         "temp_length"   
-
-
-df2C <- agg_tbl2 %>% select(-c(Batpass_min, Batpass_length, batpass01_mean, batpass01_min, batpass01_max,
-                                wind_sum, wind_length, temp_sum , temp_length ))
-
-dim(df2C) 
-# 11412    15
-head(df2C)
-tail(df2C)
-
-
-#Make a proportion variable
-
-df2C$batpass_prop <- df2C$batpass01_sum/df2C$batpass01_length
-
-head(df2C)
-tail(df2C)
-dim(df2C)
-summary(df2C) # is also only ones or zeros... why apply this to the binary variable instead of the bat pass sum? 
-sum(df2C$Batpass_sum)
-# 19438 we have the correct number of bat passes so this looks good! 
-
-#write.csv(df2C, "aggregated night behavior guild_summarytable_withbinary_batpass.csv")
-
-# Add back the other site data 
-
-df3C <- left_join(df2C, bat_sitemap)
-head(df3C)
-
-#write.csv(df3C, "guild_behavior_summarytable_site.csv")
-
-```
-
-
-
-```{r}
-# summary of survey effort
-names(df3C)
-#  [1] "jnight"           "Site"             "guild"            "behavior"         "Batpass_sum"      "Batpass_mean"     "Batpass_max"     
-#  [8] "batpass01_sum"    "batpass01_length" "wind_mean"        "wind_min"         "wind_max"         "temp_mean"        "temp_min"        
-# [15] "temp_max"         "batpass_prop"     "Habitat"          "Facility"    
-summary(df3C)
-
-
-bmp(file.path(output_today,"Survey effort per site.tif"), width = 9, height = 6, units = "in", res = 350)
-# eventually convert julian night to a proper date 
-p <- ggplot(data=df3C[df3C$Batpass_sum>0,]) +
-  geom_point(data=df3C, aes(x=night,y=guild),shape=19,color="grey") +
-  geom_point(aes(x=night,y=guild),shape=19,color="black") +
-  facet_wrap(~Site)
-print(p)
-dev.off()
-
-p 
-
-### MAKE SUPPLEMENTARY MATERIALS MAP### 
-# levels(df3C$Site)
-# 
-# leftside <- df3C %>% filter(Site %in% c("P02",   "P04",   "P08",
-#                                         "P09",  "P10",   "P11", "P14", "Met45" )) %>% droplevels()
-# 
-# rightside <- df3C %>% filter(Site %in% c("N02",   "N04",   "N08",
-#                                         "N09",  "N10",   "N11", "N14", "Met90" )) %>% droplevels()
-# 
-# pl <- ggplot(data=leftside[leftside$Batpass_sum>0,]) +
-#   geom_point(data=leftside, aes(x=night,y=guild),shape=19,color="grey") +
-#   geom_point(aes(x=night,y=guild),shape=19,color="black") +
-#   facet_wrap(~Site, nrow = 8)
-# pl
-# 
-# pr <- ggplot(data=rightside[rightside$Batpass_sum>0,]) +
-#   geom_point(data=rightside, aes(x=night,y=guild),shape=19,color="grey") +
-#   geom_count(aes(x=night,y=guild),shape=19,color="black") +
-#   facet_wrap(~Site, nrow = 8)
-# pr
-
-```
-
-```{r}
-# Remove Met tower , MRE bats, and social calls. 
-
-df1 <- df3C %>%  
-  dplyr::filter(Habitat != "MeteorologicalTower") %>% 
-  dplyr::filter(guild != "MRE") %>% 
-  dplyr::filter(behavior != "Social") %>% 
-  droplevels() 
-
-summary(df1) # 4866 obs of 18 vars
-
-#write.csv(df1, "guild_behavior_batpass_summarytable_trimmed MRE social and met tower.csv") 
-
-```
-
-## New summary plots 
