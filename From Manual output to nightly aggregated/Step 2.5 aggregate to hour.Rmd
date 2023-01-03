@@ -10,10 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Input :  The cleaned manual acoustic analysis data from the Marker 2020 study 
 
-# Outputs: 1. All bat activity aggregated to hour per site 
-           AND all bat activity aggregated to hour per site - BINARY (1/0) 
-           2. All guild and behavior bat activity aggregated to hour per site
-           AND all bat activity aggregated to hour per site - BINARY (1/0) 
+# Outputs: 1. All bat activity aggregated to hour per site
            
 
 ```{r setup, include=FALSE}
@@ -262,9 +259,9 @@ hours.expand1$nighthour <- ymd_hm(hours.expand1$nighthour)
 hours.expand2 <- hours.expand1 %>% select(Site, nighthour) %>% distinct()
 
 # 22824 obs = 951 detector nights * 24 hours - good! 
-str(hours.expand1)
+str(hours.expand2)
 
-#write.csv(hours.expand1, "active.nighthours.Marker2020.csv")
+#write.csv(hours.expand1, "24active.nighthours.Marker2020.csv")
 
 # merge the bats dataset to with the photoperiod dataset 
 photoperiod1$date <- as.Date(photoperiod1$date)
@@ -277,7 +274,7 @@ dat2 <- merge(dat1, hours.expand2, all.y = TRUE) %>% distinct()
 summary(dat2) # 19642  NAs introduced 
 #22824 obs 
 
-dat3 <- dat2 %>% mutate_at(3, ~replace_na(.,0)) 
+dat3 <- dat2 %>% mutate_at(3, ~replace_na(.,0))  
 sum(dat3$batpass) # 19438 - good! 
 
 # add back date and datehour then photoperiods/sunset data
@@ -299,14 +296,23 @@ summary(dat7) # 8981 observations that do not fit.
 
 #Do any have bat passes? 
 test <- dat7 %>% filter(Keep == "No")
-sum(test$batpass) # would lose 17 bat passes if I kept it at 2 hours... 3 hours gives us more zeros but keeps all bat passes.
+sum(test$batpass) 
+# would lose 17 bat passes if I kept the cut off at 2 hours... 
+# 3 hours gives us more zeros but keeps all bat passes.
 
-dat8<- dat7 %>% filter(Keep == "Yes") %>% select(-c(Keep)) %>% droplevels()
+dat8<- dat7 %>% filter(Keep == "Yes") %>% select(-c(Keep)) %>% droplevels() 
 summary(dat8)
 
 # 13843 detector hours for total bat passes 
 
 #write.csv(dat8, "hourlyaggregatedMarker2020_totalbats_zeroinserted.csv") 
+
+## Add back location information and julian night 
+
+dat9 <- left_join(dat8, bat_sitemap)
+summary(dat9)
+dat9$night <- as.Date(dat9$nighthour)
+dat9$jnight <- yday(dat9$night)
 
 ```
 
@@ -314,19 +320,19 @@ summary(dat8)
 ```{r}
 head(weather.hours)
 
-dat9 <- left_join(dat8, weather.hours, by = "nighthour") #%>% select(- ...1)
+dat10 <- left_join(dat9, weather.hours, by = "nighthour") %>% select(- ...1)
 
-summary(dat9)
+summary(dat10)
 
-sum(nbats4$batpass) # 19438
+sum(dat10$batpass) # 19438
 # 40 NA observations added - only one bat pass in all of these included hours with bat passes (1 pass from N08)
 # These are time slots when no weather data is available for inserted zero hours at a handful of sites. 
 # I will drop these
 
-dat10 <- drop_na(dat9) 
-summary(dat10)
-sum(dat10$batpass) # 19437
-#write.csv(dat10, "hourlaggregated_totalbats_zeroinserted_weather.csv")
+dat11 <- drop_na(dat10) 
+summary(dat11) # 13803 observations
+sum(dat11$batpass) # 19437
+#write.csv(dat11, "hourlaggregated_totalbats_zeroinserted_weather_jnight_localitiesadded.csv")
 ```
 
 
