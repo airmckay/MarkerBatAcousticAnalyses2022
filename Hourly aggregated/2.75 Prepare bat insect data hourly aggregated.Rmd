@@ -1,0 +1,342 @@
+---
+title: "2.75 Prepare bat insect data hourly aggregated"
+output: html_document
+date: "2023-01-03"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Input :  The cleaned manual acoustic analysis data from the Marker 2020 study 
+
+# Outputs: 1. All bat activity aggregated to hour per site
+           
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+knitr::opts_chunk$set(tidy = "styler")
+options(knitr.table.format = "html")
+
+# set project working directory according to the user system info 
+# Otherwise, all the data (inputs and outputs, including figures) can be stored on a shared OneDrive folder
+
+user <- Sys.info()['effective_user'] 
+user
+# this should print your nmbu user name - "apmc" in my case. 
+
+wd <- getwd()
+wd
+# "C:/Users/apmc/OneDrive - Norwegian University of Life Sciences/Documents/1. PhD_Main/GitHub_link/MarkerBatAcousticAnalyses/MarkerBatAcousticAnalyses2022"
+
+
+##########################################################
+#### Work environment set up ####
+##########################################################
+
+library(knitr)
+library(data.table)
+library(tidyverse)
+library(beepr)
+library(lubridate)
+library(purrr)
+#renv::install("rstudio/renv")
+library(renv)
+library(stringr)
+library(janitor)
+library(anytime)
+library(kableExtra)
+library(papeR)
+library(skimr)
+library(vtable)
+library(suncalc)
+
+##########################################################
+#### Inputs and outputs  ####
+##########################################################
+
+# for Reed 
+input <- "C:/Users/April/Desktop/WorkBay1/Marker/Inputs"
+# 
+dataset1 <- "MarkerManual_cleaned_manualid_guild_sitenames.csv"
+dataset2 <- "24active.nighthours.Marker2020.csv"
+dataset3 <- "day_length for active.nights Marker2020.csv"
+dataset4 <- "raw insect data tidied (1).csv"
+dataset5 <- "TRUE_hourlyaverageweather_wholepark (1).csv"
+# 
+path1 <- str_c(input, "/", dataset1)
+path2 <- str_c(input, "/", dataset2)
+path3 <- str_c(input, "/", dataset3)
+path4 <- str_c(input, "/", dataset4)
+path5 <- str_c(input, "/", dataset5)
+# 
+bats1. <- read_csv(path1) # 19438 bat passes with 22 vars
+nighthours <- read.csv(path2) # # 22824 obs of 1 var
+daylength <- read_csv(path3) # 92 obs of 7 vars 
+bugs <- read.csv(path4) # 11420 obs 8 vars
+weather.hours <- read_csv(path5) # 93 obs of 8 vars
+# 
+# 
+# # for Reed
+# output <- "C:/Users/April/Desktop/WorkBay1/Marker/Outputs"
+
+## 
+ file.name <- "Step2.75 Marker aggregated to hour and behavior"
+# 
+ todays_date <- Sys.Date()
+# 
+dir.name <- str_c(output,"/", file.name, "_", todays_date)
+ dir.name
+# 
+ dir.create(dir.name) # be careful not to run over an already created directory 
+
+output_today <- dir.name
+
+setwd(output_today)
+
+getwd()
+# "C:/Users/April/Desktop/WorkBay1/Marker/Outputs/Step2.5 Marker aggregated to hour_(today's date)"
+```
+
+# Trim the active hours dataset to 3 hours before and after sunrise/sunset
+```{r}
+
+## The nighthours object includes 24 hours for every detector night, trim this to only night hours using the day length object. 
+dat <- nighthours %>% rename(hour12 = hour) %>% mutate(nighthour = ymd_hms(nighthour)) 
+dat1 <- dat %>% mutate(datehour = nighthour + 12*60*60,
+                       date = as.Date(datehour),
+                       night = as.Date(nighthour)) %>% select(-"X")
+str(dat1)
+str(daylength)
+
+dat2 <- left_join(dat1, daylength) %>% select(-"...1")
+summary(dat2) #22824 obs 
+
+# 3 hours before and after sunrise/sunset. I tried with 2 hours as a buffer but we lost bat observations. 
+# This means we perhaps have slightly more zeros / detector-hours than in reality but at least no bat passes are lost. 
+
+dat3 <- dat2 %>% mutate(starttime = sunset - hours(3), endtime = sunrise + hours(3)) 
+summary(dat3) 
+
+dat4<- dat3%>%  
+  mutate(Keep = case_when(
+  datehour >= starttime | datehour <= endtime ~ "Yes", TRUE ~ "No"
+))
+
+dat4$Keep <- as.factor(dat4$Keep)
+summary(dat4) # 6206 observations that do not fit. 
+
+dat5<- dat4 %>% filter(Keep == "Yes") %>% select(-c(Keep)) %>% droplevels() 
+summary(dat5) # 16618 detector hours 
+
+dat5$Site <- as.factor(dat5$Site)
+
+ggplot(dat5) + geom_bar(aes(x = night), stat = "count") + facet_wrap(~Site)
+ggplot(dat5) + geom_bar(aes(x = hour12), stat = "count") + facet_wrap(~Site)
+
+
+#write.csv(dat5, "active nighthours for each site 3 hour adjustment.csv")
+
+# simplify dat5 to only include Site, nighthour and an "activehour" column
+
+active.hours <- dat5 %>% select(Site, nighthour) #
+active.hours$active.hours <- "TRUE"
+summary(active.hours$Site)
+# Make a behavior row for each detector hour - for merging with the zero inserted dataset later. 
+F.active.hours <- active.hours %>% mutate(behavior = "Feeding") 
+S.active.hours <- active.hours %>% mutate(behavior = "Social") 
+C.active.hours <- active.hours %>% mutate(behavior = "Commuting") 
+active.hours1 <- full_join(F.active.hours, S.active.hours)
+active.hours2 <- full_join(active.hours1, C.active.hours) # 49854 observations 
+# Met45 Met95   N02   N04   N08   N09   N10   N11   N14   P02   P04   P08   P09   P10   P11   P14 
+#  1235  1235  1016   756  1034   833  1034  1065  1061  1034  1061  1034  1060  1034  1065  1061 
+
+```
+
+# Format the raw bat data 
+```{r}
+# make factor levels arranged in orders that are more meaningful and insert a taxa column with more specific manual id names. 
+
+names(bats1.)
+cols <- c("manual.id" ,  "behavior"  ,  "guild"     ,  
+          "Site"     ,   "Habitat"   ,  "Locality"  ,  "Facility")
+bats1.[cols] <- lapply(bats1.[cols], factor)
+bats1.$taxa <- bats1.$manual.id
+levels(bats1.$taxa)
+# "BABA" "EPNI" "LR1"  "LR2"  "MR1"  "NYNO" "NoID" "PAUR" "PINA" "PIPY" "SR1"  "VEMU"
+levels(bats1.$taxa) <- list("Barbastella barbastellus" = "BABA",
+                           "Plecotus auritus" = "PAUR",
+                           "Short range group 1" = "SR1",
+                           "Eptesicus nilssonii" = "EPNI",
+                           "Nyctalus noctula" = "NYNO",
+                           "Vespertilio murinus" = "VEMU",
+                           "Long range group 1" = "LR1",
+                           "Long range group 2" = "LR2",
+                           "Medium range group1" = "MR1",
+                           "Pipistrellus nathusii" = "PINA",
+                           "Pipistrellus pygmaeus" = "PIPY",
+                            "Unknown bat" = "NoID") 
+summary(bats1.$taxa)
+
+levels(bats1.$guild) <- list("SRE" = "SRE", "MRE" = "MRE", "LRE" = "LRE", "NoID" = "NoID")
+summary(bats1.$guild)
+
+levels(bats1.$Locality)
+levels(bats1.$Locality) <-list("Turbine2" = "Turbine2" , "Turbine4" = "Turbine4",  "Turbine8" = "Turbine8", "MeteorologicalTower" = "MeteorologicalTower", "Turbine9" = "Turbine9", "Turbine10" = "Turbine10", "Turbine11" = "Turbine11", "Turbine14" = "Turbine14") 
+summary(bats1.$Locality)
+
+names(bats1.)
+bats2. <- bats1. %>% select(HOUR.12, HOUR, DATE, DATE.12, behavior, guild, Site, Habitat, Locality, Facility, taxa) 
+
+st(bats2.) # summary table of all the relevant factor levels across the whole dataset
+
+# export the html file: 
+
+#st(bats2., file = file.path(output_today, "total summary table"))
+
+```
+
+# Aggregate to hour by behavior by site - insert zeros 
+```{r}
+
+## sum bat passes per behavior per night hour per site 
+df <- bats1. 
+df$nighthour <- ymd_hm(df$nighthour)
+df1 <- df %>% group_by(Site, behavior, nighthour) %>% dplyr::summarize(batpass = sum(n())) 
+summary(df1)
+sum(df1$batpass) #19438
+
+#---- ADDING MISSING HOURS
+
+# ------------------------------------------
+newnights <- dat5 %>% select(Site, nighthour) %>% 
+  mutate(night = as.Date(nighthour),
+         active.night = "TRUE") %>% select(-nighthour) %>% distinct()
+head(newnights) #951 nights 
+
+# Use existing dataset hours to create nighthour column for now. 
+hours<-seq(min(df1$nighthour),max(df1$nighthour),3600) #--full daily sequence of hours for the entire study period
+hours<-hours[as.numeric(format(hours,"%H"))%in%sort(unique(as.numeric(format(df1$nighthour,"%H"))))]#--restrict to "nighthours" found in the data
+
+temp<-expand.grid(Site=unique(df1$Site),  nighthour=hours, behavior = unique(df1$behavior)) #----expanded data, 257664 obs of 4 vars 
+
+temp$night <-  as.POSIXct(format(temp$nighthour,"%Y-%m-%d"),tz="UTC")
+
+temp2<-merge(temp,newnights) #42600 observations
+summary(temp2$Site)
+# Met45 Met95   N02   N04   N08   N09   N10   N11   N14   P02   P04   P08   P09   P10   P11   P14 
+#  3150  3150  2634  1977  2679  2157  2679  2697  2697  2679  2652  2679  2697  2679  2697  2697 
+
+temp3<-merge(temp2,df1, all.x=TRUE)
+dim(temp3) # 42600 obs of 6 vars 
+summary(temp3) #(previously 64416) NA obs - 38525 NAs added 
+
+temp4 <- temp3 %>% mutate_at(6, ~replace_na(.,0))
+sum(temp4$batpass) #19438 
+summary(temp4)
+
+# Trim to match active.hours 
+temp5 <- merge(temp4, active.hours2, all.y = TRUE) # 49854 obs 
+summary(temp5) # 3868 nighthours added as NAs 
+
+temp5$night <- as.Date(temp5$nighthour)
+temp6 <- temp5 %>% select(- c(active.night, active.hours)) 
+temp7 <- temp6 %>% mutate_at(5, ~replace_na(.,0)) # make NA bat passes 0 
+summary(temp7) 
+sum(temp7$batpass)
+summary(temp7$Site)
+
+summary(temp7)
+
+```
+
+
+# Only turbines 8 and 11 
+Combine with insects
+
+```{r}
+summary(bats2.)
+temp8 <- temp7 %>% filter(Site %in% c("N08", "P08", "N11", "P11"), behavior == "Feeding") %>% droplevels() # 4198 observations 
+sum(temp8$batpass)# 426 feeding passes 
+
+names(bugs)
+# "Date"          "Time"          "Hour"          "Count"         "InsectPresAbs" "Site"          "Viable"   
+bugs$Site <- as.factor(bugs$Site)
+bugs$Viable <- as.factor(bugs$Viable)
+bugs$date <- as.Date(bugs$Date, format = "%m.%d.%y")
+bugs$datetime <- paste(bugs$date, bugs$Time, sep = " ")
+bugs$datetime <- ymd_hms(bugs$datetime)
+bugs1 <- bugs %>% mutate(nighttime = datetime - 12*60*60,
+                         night = as.Date(nighttime),
+                         jnight = yday(night)) %>% select(-Hour) 
+bugs2 <- bugs1 %>% mutate(date.hour = as.character(datetime), 
+                           night.hour = as.character(nighttime),
+                           HOUR.12 = hour(night.hour), 
+                           HOUR = hour(date.hour)) %>% select(-c(date.hour, night.hour))
+summary(bugs2)
+
+bugs2$nighthour <- paste(bugs2$night, " ",bugs2$HOUR.12, ":00", sep= "")
+bugs2$nighthour <- ymd_hm(bugs2$nighthour)
+bugs2$datehour <- paste(bugs2$date, " ",bugs2$HOUR, ":00", sep= "")
+bugs2$datehour <- ymd_hm(bugs2$datehour)
+summary(bugs2)
+
+#write.csv(bugs2, "insect data hourly with jnight hour12.csv")
+
+# replace NAs with zeros - these are when the camera was active but no data was collected/the image was not viable
+bugs3 <- bugs2 %>% select(Site, nighthour, Count) 
+levels(bugs3$Site) <- c("N08", "N11",  "P08", "P11") # rename sites
+bugs3[is.na(bugs3)] <- 0
+summary(bugs3)
+sum(bugs3$Count)# 4563 bugs 
+## aggregate to hour 
+bugs4 <- bugs3 %>% group_by(Site, nighthour) %>% dplyr::summarize(bugcount = sum(Count)) 
+summary(bugs4)
+sum(bugs4$bugcount)# 4563 bugs - good! 
+
+temp9 <- temp8 %>% select(-night)
+summary(bugs4)
+summary(temp8)
+
+batsbugs <- merge(bugs4, temp9, all.x = TRUE) %>% distinct() # 564 observations
+
+summary(batsbugs) # 2045 observations 
+sum(batsbugs$bugcount) # 4563 bugs
+sum(batsbugs$batpass)  # 373 bat feeding passes that match up with active camera trap hours. 
+
+```
+
+## Add back meaningful columns, merge with weather  
+```{r}
+
+# Site info 
+batsbugs1<- left_join(batsbugs, bat_sitemap) %>% droplevels()
+
+# HOUR.12, datehour, date, HOUR, jnight 
+batsbugs2 <- batsbugs1 %>% mutate(datehour = nighthour + 12*60*60,
+                          date = as.Date(datehour),
+                          night = as.Date(nighthour),
+                          jnight = yday(night)) 
+
+batsbugs3 <- batsbugs2 %>% mutate(date.hour = as.character(datehour), 
+                           night.hour = as.character(nighthour),
+                           HOUR.12 = hour(night.hour), 
+                           HOUR = hour(date.hour)) %>% select(-c(date.hour, night.hour))
+
+summary(batsbugs3)
+
+#write.csv(batsbugs3, "bats and insects combined no weather.csv")
+
+summary(weather.hours)
+weather.hours1 <- weather.hours %>% select(nighthour, wind, temp)
+
+batsbugs4 <- left_join(batsbugs3, weather.hours1, by = "nighthour") 
+summary(batsbugs4) # 4 NAs introduced
+
+batsbugs5 <- drop_na(batsbugs4)
+summary(batsbugs5) # 2041 observations 
+sum(batsbugs5$batpass) # 372, lost one bat pass 
+sum(batsbugs5$bugcount) # 4546, lost 17 insect counts 
+
+#write.csv(batsbugs5, "bats and insects combined with weather.csv")
+```
