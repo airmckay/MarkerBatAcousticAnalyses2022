@@ -194,12 +194,15 @@ st(bats2.) # summary table of all the relevant factor levels across the whole da
 
 #st(bats2., file = file.path(output_today, "total summary table"))
 
+# for after aggregation later 
+bats_sitemap <- bats2. %>% select(Site, Habitat, Locality, Facility) %>% distinct()
+
 ```
 
 # Aggregate to hour by behavior by site - insert zeros 
 ```{r}
 
-## sum bat passes per behavior per night hour per site 
+## Aggregate to by nighthour, site, behavior
 df <- bats1. 
 df$nighthour <- ymd_hm(df$nighthour)
 df1 <- df %>% group_by(Site, behavior, nighthour) %>% dplyr::summarize(batpass = sum(n())) 
@@ -207,8 +210,7 @@ summary(df1)
 sum(df1$batpass) #19438
 
 #---- ADDING MISSING HOURS
-
-# ------------------------------------------
+# remember dat5 includes all active detector nights per Site
 newnights <- dat5 %>% select(Site, nighthour) %>% 
   mutate(night = as.Date(nighthour),
          active.night = "TRUE") %>% select(-nighthour) %>% distinct()
@@ -246,7 +248,15 @@ summary(temp7)
 sum(temp7$batpass)
 summary(temp7$Site)
 
-summary(temp7)
+summary(temp7) #49854 obs of 5 vars
+head(temp7)
+#    Site           nighthour  behavior      night batpass
+# 1 Met45 2020-07-16 08:00:00 Commuting 2020-07-16       0
+# 2 Met45 2020-07-16 08:00:00   Feeding 2020-07-16       0
+# 3 Met45 2020-07-16 08:00:00    Social 2020-07-16       0
+# 4 Met45 2020-07-16 09:00:00 Commuting 2020-07-16       0
+# 5 Met45 2020-07-16 09:00:00   Feeding 2020-07-16       0
+# 6 Met45 2020-07-16 09:00:00    Social 2020-07-16       0
 
 ```
 
@@ -255,7 +265,7 @@ summary(temp7)
 Combine with insects
 
 ```{r}
-summary(bats2.)
+#filter bat passes to only include feeding passes from turbines 8 and 11 
 temp8 <- temp7 %>% filter(Site %in% c("N08", "P08", "N11", "P11"), behavior == "Feeding") %>% droplevels() # 4198 observations 
 sum(temp8$batpass)# 426 feeding passes 
 
@@ -306,7 +316,7 @@ sum(batsbugs$batpass)  # 373 bat feeding passes that match up with active camera
 
 ```
 
-## Add back meaningful columns, merge with weather  
+## Add back temporal and spatial columns, merge with weather  
 ```{r}
 
 # Site info 
@@ -323,7 +333,7 @@ batsbugs3 <- batsbugs2 %>% mutate(date.hour = as.character(datehour),
                            HOUR.12 = hour(night.hour), 
                            HOUR = hour(date.hour)) %>% select(-c(date.hour, night.hour))
 
-summary(batsbugs3)
+summary(batsbugs3)# 2045 observations 
 
 #write.csv(batsbugs3, "bats and insects combined no weather.csv")
 
@@ -339,4 +349,5 @@ sum(batsbugs5$batpass) # 372, lost one bat pass
 sum(batsbugs5$bugcount) # 4546, lost 17 insect counts 
 
 #write.csv(batsbugs5, "bats and insects combined with weather.csv")
+
 ```
